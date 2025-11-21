@@ -1,4 +1,6 @@
 package com.securebank.interfaces;
 
-public class IBankObserver {
+public interface IBankObserver {
+  // El contrato que todos los observadores deben cumplir
+  void onTransactionExecuted(String transactionData);
 }
