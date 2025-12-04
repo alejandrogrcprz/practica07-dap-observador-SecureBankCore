@@ -11,28 +11,48 @@ public class MainSystem {
 
     // 1. Crear Ventanas
     BankAdminConsole adminWindow = new BankAdminConsole();
-    MobilePhoneSimulator myPhone = new MobilePhoneSimulator(engine, repository);
 
-    // 2. Crear Observadores (Inyectando la consola)
+    // MÓVIL A (Dispositivo Genérico 1)
+    MobilePhoneSimulator phone1 = new MobilePhoneSimulator(engine, repository);
+    phone1.setTitle("Smartphone - Dispositivo A");
+
+    // MÓVIL B (Dispositivo Genérico 2)
+    MobilePhoneSimulator phone2 = new MobilePhoneSimulator(engine, repository);
+    phone2.setTitle("Smartphone - Dispositivo B");
+
+    // 2. Crear Observadores de Lógica (Backend)
     FraudDetectorAI fraud = new FraudDetectorAI(adminWindow);
     AuditLogger logger = new AuditLogger(adminWindow);
     GeneralLedger ledger = new GeneralLedger(adminWindow);
     NotificationService notif = new NotificationService(adminWindow);
 
-    // 3. Conectar todo al motor
+    // 3. Conectar todo al motor (PATRÓN OBSERVADOR)
     engine.attach(fraud);
     engine.attach(logger);
     engine.attach(ledger);
     engine.attach(notif);
-    engine.attach(myPhone);
+
+    // Conectamos los dos móviles.
+    // Ambos recibirán TODAS las notificaciones (Broadcast),
+    // pero cada uno filtrará internamente si el mensaje es para su usuario logueado.
+    engine.attach(phone1);
+    engine.attach(phone2);
+
     engine.attach(adminWindow);
 
-    // 4. Mostrar
+    // 4. Mostrar y colocar en pantalla para la demo
     SwingUtilities.invokeLater(() -> {
-      myPhone.setLocation(100, 100);
-      adminWindow.setLocation(500, 100);
-      myPhone.setVisible(true);
+      // Consola del Admin a la izquierda
+      adminWindow.setLocation(50, 50);
       adminWindow.setVisible(true);
+
+      // Móvil 1 en el centro
+      phone1.setLocation(900, 100);
+      phone1.setVisible(true);
+
+      // Móvil 2 a la derecha
+      phone2.setLocation(1300, 100);
+      phone2.setVisible(true);
     });
   }
 }
