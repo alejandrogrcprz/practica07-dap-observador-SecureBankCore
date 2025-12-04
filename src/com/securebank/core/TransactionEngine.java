@@ -7,7 +7,6 @@ import java.util.List;
 
 public class TransactionEngine implements ITransactionSubject {
 
-  // Lista de suscriptores (Agregación - El rombo blanco del diagrama)
   private List<IBankObserver> observers = new ArrayList<>();
 
   @Override
@@ -22,28 +21,26 @@ public class TransactionEngine implements ITransactionSubject {
 
   @Override
   public void notifyObservers(String data) {
-    // Recorremos la lista y avisamos a cada uno
     for (IBankObserver observer : observers) {
       observer.onTransactionExecuted(data);
     }
   }
 
-  // LÓGICA DE NEGOCIO PURA
-  public void executeTransfer(double amount, String sourceAccount, String destinationAccount) {
-    System.out.println("\n--- INICIANDO TRANSACCIÓN ---");
-    System.out.println("[MOTOR] Procesando transferencia de " + amount + "€...");
-    System.out.println("[MOTOR] Validando saldo de " + sourceAccount + "...");
-    System.out.println("[MOTOR] Moviendo dinero a " + destinationAccount + "...");
+  // LÓGICA DE NEGOCIO (MOVIMIENTO DE DINERO)
+  public void executeTransfer(double amount, String sourceAccount, String details) {
+    // Aquí iría la lógica real de mover dinero en BBDD...
 
-    // Simulamos un pequeño tiempo de procesamiento
-    try { Thread.sleep(1000); } catch (InterruptedException e) { }
+    // Notificamos el ÉXITO
+    String transactionData = "TRANSFERENCIA | " + sourceAccount + " -> " + details + " | IMPORTE: " + amount + "€";
+    notifyObservers(transactionData);
+  }
 
-    System.out.println("[MOTOR] ¡Transferencia realizada con éxito!");
+  // --- NUEVO: MÉTODO PARA REPORTAR ERRORES SIN MOVER DINERO ---
+  public void reportIncident(String type, String details) {
+    // Construimos un mensaje de evento
+    String eventData = type + " | " + details;
 
-    // EL PASO CLAVE DEL PATRÓN:
-    String transactionDetails = "TX_ID: " + System.currentTimeMillis() + " | " + sourceAccount + " -> " + destinationAccount + " | IMPORTE: " + amount + "€";
-
-    System.out.println("[MOTOR] Notificando a los sistemas observadores...");
-    notifyObservers(transactionDetails);
+    // Notificamos a los observadores (Dashboard, Logs, etc.)
+    notifyObservers(eventData);
   }
 }
