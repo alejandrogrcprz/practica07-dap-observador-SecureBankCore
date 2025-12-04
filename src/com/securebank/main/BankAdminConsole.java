@@ -21,11 +21,12 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
 
   // --- COMPONENTES VISUALES ---
   private JTextArea ledgerArea, auditLog;
-  private JLabel lblCheckIP, lblCheckBlacklist, lblCheckAmount, lblFraudResult;
-  private JProgressBar progressCPU, progressRAM; // NUEVO: Barras de carga
+  // Etiquetas para los 4 pasos del escáner
+  private JLabel lblStep1, lblStep2, lblStep3, lblStep4, lblFraudResult;
+  private JProgressBar progressCPU, progressRAM;
 
   // --- DATOS ---
-  private List<String> secretLedgerData = new ArrayList<>(); // Guardará JSON
+  private List<String> secretLedgerData = new ArrayList<>();
   private JTable historyTable;
   private DefaultTableModel tableModel;
   private JLabel lblKpiVolume, lblKpiFraud, lblKpiCount;
@@ -35,7 +36,7 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
   public BankAdminConsole() {
     setTitle("SECUREBANK OPS CENTER - INFRAESTRUCTURA CRÍTICA");
     setSize(1200, 800);
-    setLocation(500, 50);
+    setLocation(500, 100);
     setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
     setupDarkTheme();
@@ -51,7 +52,6 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
     loadHistoryFromDisk();
     updateKPIs();
 
-    // Iniciar simulación de latidos del servidor (CPU/RAM)
     startServerSimulation();
   }
 
@@ -65,87 +65,78 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
     getContentPane().setBackground(new Color(30, 30, 30));
   }
 
-  // --- PESTAÑA 1: MONITORIZACIÓN REALISTA ---
+  // --- PESTAÑA 1: MONITORIZACIÓN (REDISEÑADA) ---
   private JPanel createLiveMonitor() {
     JPanel panel = new JPanel(new BorderLayout());
 
-    // BARRA ESTADO
     JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
     statusPanel.setBackground(new Color(20, 20, 20));
-    JLabel lblStatus = new JLabel("🟢 CLUSTER STATUS: HEALTHY | 🌍 REGION: EU-WEST-1 | 🔑 PKI: ACTIVE");
+    // Iconos ASCII limpios en lugar de emojis fallidos
+    JLabel lblStatus = new JLabel("● CLUSTER STATUS: HEALTHY | ● REGION: EU-WEST-1 | ● PKI: ACTIVE");
     lblStatus.setForeground(Color.GREEN);
     lblStatus.setFont(new Font("Consolas", Font.BOLD, 12));
     statusPanel.add(lblStatus);
     panel.add(statusPanel, BorderLayout.NORTH);
 
-    JPanel grid = new JPanel(new GridLayout(2, 2, 15, 15)); // Más espacio entre paneles
+    JPanel grid = new JPanel(new GridLayout(2, 2, 15, 15));
     grid.setBackground(new Color(30, 30, 30));
     grid.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-    // 1. IA FRAUDE (Visualización del proceso de decisión)
-    JPanel pFraud = createPanel("🛡️ IA THREAT DEFENSE");
+    // 1. FRAUD DETECTOR AI (NUEVO DISEÑO SECUENCIAL)
+    JPanel pFraud = createPanel("FRAUD DETECTOR AI"); // Nombre cambiado
     Box box = Box.createVerticalBox();
-    lblCheckIP = createLabel("• Geo-localización IP");
-    lblCheckBlacklist = createLabel("• Cotejo Listas Sanciones");
-    lblCheckAmount = createLabel("• Análisis Heurístico");
+
+    // Los 4 pasos del escáner
+    lblStep1 = createLabel("• Velocity Check (Rate Limit)");
+    lblStep2 = createLabel("• Patrón Numérico (Heurística)");
+    lblStep3 = createLabel("• Riesgo Geográfico (IBAN)");
+    lblStep4 = createLabel("• Lista Negra (Contenido)");
+
     lblFraudResult = new JLabel("[ IDLE ]");
     lblFraudResult.setForeground(Color.DARK_GRAY);
     lblFraudResult.setAlignmentX(Component.CENTER_ALIGNMENT);
     lblFraudResult.setFont(new Font("Consolas", Font.BOLD, 24));
 
-    box.add(Box.createVerticalStrut(20)); box.add(lblCheckIP); box.add(lblCheckBlacklist); box.add(lblCheckAmount); box.add(Box.createVerticalStrut(20)); box.add(lblFraudResult);
+    box.add(Box.createVerticalStrut(20));
+    box.add(lblStep1); box.add(lblStep2); box.add(lblStep3); box.add(lblStep4);
+    box.add(Box.createVerticalStrut(20)); box.add(lblFraudResult);
     pFraud.add(box); grid.add(pFraud);
 
-    // 2. LEDGER (Ahora guarda JSON técnico)
-    JPanel pLedger = createPanel("💾 BLOCKCHAIN LEDGER (IMMUTABLE)");
+    // 2. LEDGER (Sin cambios importantes)
+    JPanel pLedger = createPanel("BLOCKCHAIN LEDGER (IMMUTABLE)");
     ledgerArea = new JTextArea();
     ledgerArea.setBackground(new Color(15, 15, 30));
-    ledgerArea.setForeground(new Color(100, 255, 100)); // Verde terminal matrix
+    ledgerArea.setForeground(new Color(100, 255, 100));
     ledgerArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
     ledgerArea.setEditable(false);
-    JButton btnUnlock = new JButton("🔓 INSPECCIONAR BLOQUE (ROOT)");
+    JButton btnUnlock = new JButton("[ INSPECCIONAR BLOQUE (ROOT) ]"); // Texto limpio
     btnUnlock.setBackground(new Color(0, 100, 200));
     btnUnlock.setForeground(Color.WHITE);
+    btnUnlock.setFocusPainted(false);
     btnUnlock.addActionListener(e -> unlockLedger());
     pLedger.add(new JScrollPane(ledgerArea), BorderLayout.CENTER);
     pLedger.add(btnUnlock, BorderLayout.SOUTH);
     grid.add(pLedger);
 
-    // 3. LOGS DEL SISTEMA (Eventos técnicos)
-    JPanel pAudit = createPanel("📜 SYSTEM EVENT LOG");
+    // 3. LOGS DEL SISTEMA
+    JPanel pAudit = createPanel("SYSTEM EVENT LOG");
     auditLog = new JTextArea();
     auditLog.setBackground(Color.BLACK);
     auditLog.setForeground(Color.LIGHT_GRAY);
     auditLog.setFont(new Font("Consolas", Font.PLAIN, 11));
     pAudit.add(new JScrollPane(auditLog)); grid.add(pAudit);
 
-    // 4. SERVER HEALTH (NUEVO: BARRAS DE PROGRESO)
-    JPanel pServer = createPanel("⚡ INFRASTRUCTURE HEALTH");
+    // 4. SERVER HEALTH
+    JPanel pServer = createPanel("INFRASTRUCTURE HEALTH");
     Box serverBox = Box.createVerticalBox();
-
-    progressCPU = new JProgressBar(0, 100);
-    progressCPU.setStringPainted(true);
-    progressCPU.setForeground(new Color(255, 100, 100));
-    progressCPU.setBackground(Color.DARK_GRAY);
-
-    progressRAM = new JProgressBar(0, 100);
-    progressRAM.setStringPainted(true);
-    progressRAM.setForeground(new Color(100, 150, 255));
-    progressRAM.setBackground(Color.DARK_GRAY);
-
-    serverBox.add(new JLabel("CPU LOAD:"));
-    serverBox.add(progressCPU);
+    progressCPU = new JProgressBar(0, 100); progressCPU.setStringPainted(true); progressCPU.setForeground(new Color(255, 100, 100)); progressCPU.setBackground(Color.DARK_GRAY);
+    progressRAM = new JProgressBar(0, 100); progressRAM.setStringPainted(true); progressRAM.setForeground(new Color(100, 150, 255)); progressRAM.setBackground(Color.DARK_GRAY);
+    serverBox.add(new JLabel("NETWORK TRAFFIC (TPS):")); serverBox.add(progressCPU);
     serverBox.add(Box.createVerticalStrut(15));
-    serverBox.add(new JLabel("MEMORY USAGE (JVM):"));
-    serverBox.add(progressRAM);
-
-    // Añadir un gráfico de texto simulado
+    serverBox.add(new JLabel("DB LATENCY (ms):")); serverBox.add(progressRAM);
     JTextArea stats = new JTextArea("\n Active Threads: 42\n Garbage Collector: Idle\n DB Connections: 8/100");
-    stats.setBackground(new Color(30,30,30));
-    stats.setForeground(Color.GRAY);
-    stats.setEditable(false);
+    stats.setBackground(new Color(30,30,30)); stats.setForeground(Color.GRAY); stats.setEditable(false);
     serverBox.add(stats);
-
     pServer.add(serverBox);
     grid.add(pServer);
 
@@ -153,7 +144,7 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
     return panel;
   }
 
-  // --- PESTAÑA 2: HISTORIAL ---
+  // --- PESTAÑA 2: HISTORIAL (Sin cambios) ---
   private JPanel createDataPanel() {
     JPanel p = new JPanel(new BorderLayout());
     p.setBackground(new Color(30, 30, 30));
@@ -174,7 +165,6 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
     historyTable.setRowHeight(30);
     historyTable.setFont(new Font("SansSerif", Font.PLAIN, 12));
 
-    // Configuración anchos
     historyTable.getColumnModel().getColumn(0).setPreferredWidth(120);
     historyTable.getColumnModel().getColumn(2).setPreferredWidth(300);
 
@@ -205,47 +195,71 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
   public void logToSystem(String message) {
     String time = new SimpleDateFormat("HH:mm:ss").format(new Date());
     if (auditLog != null) {
-      auditLog.append("> " + time + " | INFO | " + message + "\n");
+      // Icono ASCII limpio para el log
+      auditLog.append("> [" + time + "] " + message.replace("🚨", "[ALERTA]").replace("NOTIFICACIÓN:", "[NOTIF]") + "\n");
       auditLog.setCaretPosition(auditLog.getDocument().getLength());
     }
-    // Simular pico de CPU al procesar log
     spikeCpu();
   }
 
   public void addLedgerEntry(String rawData, String hash) {
     String time = new SimpleDateFormat("HH:mm:ss.SSS").format(new Date());
     if (ledgerArea != null) {
-      // El Ledger muestra el HASH (técnico)
       ledgerArea.append("[" + time + "] BLOCK MINED: " + hash.substring(0, 16) + "...\n");
     }
-
-    // GUARDAMOS JSON (ESTRUCTURADO) EN EL SECRETO
-    // Esto es lo que diferencia el Ledger del Log: Data Estructurada
     String json = "{\n  \"timestamp\": \"" + time + "\",\n  \"hash\": \"" + hash + "\",\n  \"data\": \"" + rawData + "\"\n}";
     secretLedgerData.add(json);
   }
 
-  public void animateFraudCheck(boolean isFraud) {
+  // --- NUEVA ANIMACIÓN SECUENCIAL DEL ESCÁNER ---
+  public void animateFraudCheck(String resultCode) {
     new Thread(() -> {
       try {
-        if (lblFraudResult != null) {
-          lblFraudResult.setText("[ SCANNING ]"); lblFraudResult.setForeground(Color.CYAN);
-        }
-        spikeCpu(); // La IA consume CPU
-        Thread.sleep(200); updateLabel(lblCheckIP, "✔ IP: MADRID (ES)", Color.GREEN);
-        Thread.sleep(200); updateLabel(lblCheckBlacklist, "✔ LISTAS: CLEAN", Color.GREEN);
-        Thread.sleep(200);
+        // ESTADO INICIAL: ESCANEANDO
+        if (lblFraudResult != null) { lblFraudResult.setText("[ SCANNING... ]"); lblFraudResult.setForeground(Color.CYAN); }
+        spikeCpu();
 
-        if(isFraud) {
-          updateLabel(lblCheckAmount, "❌ PATTERN: RISK", Color.RED);
-          if (lblFraudResult != null) { lblFraudResult.setText("[ BLOCKED ]"); lblFraudResult.setForeground(Color.RED); }
-        } else {
-          updateLabel(lblCheckAmount, "✔ PATTERN: OK", Color.GREEN);
-          if (lblFraudResult != null) { lblFraudResult.setText("[ SECURE ]"); lblFraudResult.setForeground(Color.GREEN); }
-        }
-        Thread.sleep(3000); resetLabels();
+        // Limpiamos los pasos anteriores
+        resetLabels(false);
+
+        // SECUENCIA DE CHEQUEO (Cada paso tarda 400ms)
+        // Usamos iconos ASCII seguros (✔ y ❌)
+
+        // PASO 1: VELOCITY
+        Thread.sleep(400);
+        if (resultCode.contains("STEP1")) { updateLabel(lblStep1, "❌ Velocity Check (Rate Limit)", Color.RED); failSequence(); return; }
+        else updateLabel(lblStep1, "✔ Velocity Check (Rate Limit)", Color.GREEN);
+
+        // PASO 2: PATRÓN
+        Thread.sleep(400);
+        if (resultCode.contains("STEP2")) { updateLabel(lblStep2, "❌ Patrón Numérico (Heurística)", Color.RED); failSequence(); return; }
+        else updateLabel(lblStep2, "✔ Patrón Numérico (Heurística)", Color.GREEN);
+
+        // PASO 3: GEO
+        Thread.sleep(400);
+        if (resultCode.contains("STEP3")) { updateLabel(lblStep3, "❌ Riesgo Geográfico (IBAN)", Color.RED); failSequence(); return; }
+        else updateLabel(lblStep3, "✔ Riesgo Geográfico (IBAN)", Color.GREEN);
+
+        // PASO 4: BLACKLIST
+        Thread.sleep(400);
+        if (resultCode.contains("STEP4")) { updateLabel(lblStep4, "❌ Lista Negra (Contenido)", Color.RED); failSequence(); return; }
+        else updateLabel(lblStep4, "✔ Lista Negra (Contenido)", Color.GREEN);
+
+        // SI LLEGA AQUÍ, TODO ES CORRECTO (OK)
+        Thread.sleep(200);
+        if (lblFraudResult != null) { lblFraudResult.setText("[ SECURE ]"); lblFraudResult.setForeground(Color.GREEN); }
+
+        // Resetear después de 3 segundos
+        Thread.sleep(3000); resetLabels(true);
+
       } catch (Exception e) {}
     }).start();
+  }
+
+  // Método auxiliar para cuando la secuencia falla
+  private void failSequence() throws InterruptedException {
+    if (lblFraudResult != null) { lblFraudResult.setText("[ BLOCKED ]"); lblFraudResult.setForeground(Color.RED); }
+    Thread.sleep(3000); resetLabels(true);
   }
 
   // --- RECEPCIÓN EVENTOS (TABLA GENERAL) ---
@@ -255,40 +269,27 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
     boolean isFraud = data.contains("BLOQUEADO");
     boolean isError = data.contains("FALLO");
 
-    String tipo = "TRANSFER";
-    String estado = "OK";
-    String importe = "---";
-    String detalle = data;
-    String concepto = "";
+    String tipo = "TRANSFER"; String estado = "OK"; String importe = "---"; String detalle = data; String concepto = "";
 
     if (isFraud) {
-      tipo = "ALERTA";
-      estado = "BLOQUEADO";
-      detalle = "Intento de fraude detectado";
-    } else if (isError) {
-      tipo = "ERROR";
-      estado = "DENEGADO";
-      detalle = "Fallo operativo (Saldo)";
-    } else {
-      // Parseo de la cadena del motor: IBAN -> IBAN | Ben | Concepto
+      tipo = "ALERTA"; estado = "BLOQUEADO"; detalle = "Intento de fraude detectado";
       try {
         String[] parts = data.split("\\|");
-        if (parts.length >= 4) {
-          detalle = parts[1].trim();
-          concepto = parts[3].trim();
-        }
+        if (parts.length >= 3) detalle = parts[2].trim(); // Usar el detalle del fraude si existe
+      } catch (Exception e) {}
+    } else if (isError) {
+      tipo = "ERROR"; estado = "DENEGADO"; detalle = "Fallo operativo (Saldo)";
+    } else {
+      try {
+        String[] parts = data.split("\\|");
+        if (parts.length >= 4) { detalle = parts[1].trim(); concepto = parts[3].trim(); }
       } catch (Exception e) {}
     }
 
-    try {
-      Pattern p = Pattern.compile("(\\d+[.,]?\\d*)\\s?€");
-      Matcher m = p.matcher(data);
-      if (m.find()) importe = m.group(1) + " €";
-    } catch (Exception e) {}
+    try { Pattern p = Pattern.compile("(\\d+[.,]?\\d*)\\s?€"); Matcher m = p.matcher(data); if (m.find()) importe = m.group(1) + " €"; } catch (Exception e) {}
 
     String[] rowData = {time, tipo, detalle, concepto, importe, estado};
     tableModel.addRow(rowData);
-
     saveToCSV(rowData);
     updateKPIs();
   }
@@ -296,21 +297,14 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
   // --- SIMULACIÓN SERVIDOR ---
   private void startServerSimulation() {
     Timer t = new Timer(1000, e -> {
-      // Valor base aleatorio bajo
-      int cpu = new Random().nextInt(10) + 5;
-      int ram = new Random().nextInt(5) + 40;
-      if(progressCPU.getValue() > 20) cpu = progressCPU.getValue() - 5; // Bajar poco a poco
-
-      progressCPU.setValue(cpu);
-      progressRAM.setValue(ram);
+      int cpu = new Random().nextInt(10) + 5; int ram = new Random().nextInt(5) + 40;
+      if(progressCPU.getValue() > 20) cpu = progressCPU.getValue() - 5;
+      progressCPU.setValue(cpu); progressRAM.setValue(ram);
     });
     t.start();
   }
 
-  private void spikeCpu() {
-    // Simula un pico de trabajo
-    progressCPU.setValue(new Random().nextInt(40) + 50); // Sube a 50-90%
-  }
+  private void spikeCpu() { progressCPU.setValue(new Random().nextInt(40) + 50); }
 
   // --- UTILS ---
   private void updateKPIs() {
@@ -321,9 +315,7 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
       if ("BLOQUEADO".equals(status)) fraudCount++;
       else if ("OK".equals(status)) {
         okCount++;
-        if (!"---".equals(amountStr)) {
-          try { totalVol += Double.parseDouble(amountStr.replace("€", "").trim().replace(",", ".")); } catch (Exception e) {}
-        }
+        if (!"---".equals(amountStr)) { try { totalVol += Double.parseDouble(amountStr.replace("€", "").trim().replace(",", ".")); } catch (Exception e) {} }
       }
     }
     DecimalFormat df = new DecimalFormat("#,##0.00");
@@ -339,36 +331,35 @@ public class BankAdminConsole extends JFrame implements IBankObserver {
   }
 
   private void loadHistoryFromDisk() {
-    File file = new File(CSV_FILE);
-    if (!file.exists()) return;
+    File file = new File(CSV_FILE); if (!file.exists()) return;
     try (Scanner scanner = new Scanner(file)) {
       while (scanner.hasNextLine()) {
         String line = scanner.nextLine();
-        if (!line.isEmpty()) {
-          String[] data = line.split(";");
-          if (data.length == 6) tableModel.addRow(data);
-        }
+        if (!line.isEmpty()) { String[] data = line.split(";"); if (data.length == 6) tableModel.addRow(data); }
       }
     } catch (Exception e) {}
   }
 
   private void unlockLedger() {
     JPasswordField pf = new JPasswordField();
-    int ok = JOptionPane.showConfirmDialog(this, pf, "Acceso Root:", JOptionPane.OK_CANCEL_OPTION);
+    int ok = JOptionPane.showConfirmDialog(this, pf, "Acceso Root (Pass: root):", JOptionPane.OK_CANCEL_OPTION);
     if (ok == JOptionPane.OK_OPTION && "root".equals(new String(pf.getPassword()))) {
-      StringBuilder sb = new StringBuilder();
-      for (String row : secretLedgerData) sb.append(row).append("\n");
+      StringBuilder sb = new StringBuilder(); for (String row : secretLedgerData) sb.append(row).append("\n");
       JTextArea textArea = new JTextArea(20, 60); textArea.setText(sb.toString());
       JOptionPane.showMessageDialog(this, new JScrollPane(textArea), "LEDGER JSON DATA", JOptionPane.INFORMATION_MESSAGE);
     }
   }
 
-  private void resetLabels() {
-    if(lblCheckIP!=null) updateLabel(lblCheckIP, "• Geolocalización IP", Color.GRAY);
-    if(lblCheckBlacklist!=null) updateLabel(lblCheckBlacklist, "• Listas Sanciones", Color.GRAY);
-    if(lblCheckAmount!=null) updateLabel(lblCheckAmount, "• Patrón Heurístico", Color.GRAY);
-    if(lblFraudResult!=null) { lblFraudResult.setText("[ IDLE ]"); lblFraudResult.setForeground(Color.DARK_GRAY); }
+  private void resetLabels(boolean resetResult) {
+    // Usamos un punto ASCII limpio (•) en lugar de gris
+    updateLabel(lblStep1, "• Velocity Check (Rate Limit)", Color.GRAY);
+    updateLabel(lblStep2, "• Patrón Numérico (Heurística)", Color.GRAY);
+    updateLabel(lblStep3, "• Riesgo Geográfico (IBAN)", Color.GRAY);
+    updateLabel(lblStep4, "• Lista Negra (Contenido)", Color.GRAY);
+    if(resetResult && lblFraudResult!=null) { lblFraudResult.setText("[ IDLE ]"); lblFraudResult.setForeground(Color.DARK_GRAY); }
   }
+
+  // Métodos auxiliares para crear componentes con estilos limpios
   private JPanel createPanel(String t) { JPanel p = new JPanel(new BorderLayout()); p.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.GRAY), t, 0,0,new Font("Segoe UI",1,12),Color.WHITE)); p.setBackground(new Color(20,20,20)); return p; }
   private JLabel createLabel(String t) { JLabel l = new JLabel(t); l.setForeground(Color.GRAY); l.setAlignmentX(Component.CENTER_ALIGNMENT); l.setFont(new Font("Segoe UI", Font.PLAIN, 14)); return l; }
   private void updateLabel(JLabel l, String t, Color c) { if(l!=null) { l.setText(t); l.setForeground(c); } }
