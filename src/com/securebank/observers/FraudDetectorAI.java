@@ -1,11 +1,21 @@
 package com.securebank.observers;
+
 import com.securebank.interfaces.IBankObserver;
+import com.securebank.main.BankAdminConsole;
 
 public class FraudDetectorAI implements IBankObserver {
+  private BankAdminConsole console;
+
+  public FraudDetectorAI(BankAdminConsole console) {
+    this.console = console;
+  }
+
   @Override
-  public void onTransactionExecuted(String transactionData) {
-    System.out.println("   -> [FRAUDE AI] Analizando patrón de comportamiento... (IP, Ubicación)");
-    // Aquí iría la lógica de conectar con la API externa en el futuro
-    System.out.println("   -> [FRAUDE AI] Resultado: Transacción SEGURA.");
+  public void onTransactionExecuted(String data) {
+    // LÓGICA: Analizar si está bloqueado
+    boolean isFraud = data.contains("BLOQUEADO");
+
+    // VISUAL: Llamamos al método CORRECTO de la consola
+    console.animateFraudCheck(isFraud);
   }
 }
