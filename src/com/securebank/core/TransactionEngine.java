@@ -26,13 +26,14 @@ public class TransactionEngine implements ITransactionSubject {
     }
   }
 
-  // LÓGICA DE NEGOCIO (MOVIMIENTO DE DINERO)
-  public void executeTransfer(double amount, String sourceAccount, String details) {
-    // Aquí iría la lógica real de mover dinero en BBDD...
+  // Añadimos el parámetro sourceName
+  public void executeTransfer(double amount, String sourceIban, String destIban, String benName, String concept, String sourceName) {
 
-    // Notificamos el ÉXITO
-    String transactionData = "TRANSFERENCIA | " + sourceAccount + " -> " + details + " | IMPORTE: " + amount + "€";
-    notifyObservers(transactionData);
+    // NUEVO PROTOCOLO V2 (Incluye Nombre del Emisor al final)
+    // TX ## ORIGEN ## DESTINO ## CANTIDAD ## NOMBRE_BENEFICIARIO ## CONCEPTO ## NOMBRE_EMISOR
+    String eventData = "TX##" + sourceIban + "##" + destIban + "##" + amount + "##" + benName + "##" + concept + "##" + sourceName;
+
+    notifyObservers(eventData);
   }
 
   // --- NUEVO: MÉTODO PARA REPORTAR ERRORES SIN MOVER DINERO ---
