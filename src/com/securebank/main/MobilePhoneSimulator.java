@@ -23,7 +23,7 @@ import java.util.UUID;
 public class MobilePhoneSimulator extends JFrame implements IBankObserver {
 
   private TransactionEngine engine;
-  private BankRepository repository;
+  private IBankRepository repository;
 
   // SESIÓN Y DATOS
   private List<String> myIbans = new ArrayList<>();
@@ -55,7 +55,7 @@ public class MobilePhoneSimulator extends JFrame implements IBankObserver {
   private JTextField txtIban, txtBeneficiary, txtAmount, txtConcept;
   private JTextField txtUserLogin;
 
-  public MobilePhoneSimulator(TransactionEngine engine, BankRepository repository) {
+  public MobilePhoneSimulator(TransactionEngine engine, IBankRepository repository) {
     this.engine = engine;
     this.repository = repository;
 

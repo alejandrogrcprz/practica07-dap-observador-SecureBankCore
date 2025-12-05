@@ -7,16 +7,17 @@ import javax.swing.*;
 public class MainSystem {
   public static void main(String[] args) {
     TransactionEngine engine = new TransactionEngine();
-    BankRepository repository = new BankRepository();
+
+    // Si mañana creamos 'SqlBankRepository', solo cambiamos esta línea.
+    IBankRepository repository = new BankRepository();
 
     // 1. Crear Ventanas
     BankAdminConsole adminWindow = new BankAdminConsole();
 
-    // MÓVIL A (Dispositivo Genérico 1)
+    // Fíjate que los móviles ya no se quejan, aceptan la interfaz
     MobilePhoneSimulator phone1 = new MobilePhoneSimulator(engine, repository);
     phone1.setTitle("Smartphone - Dispositivo A");
 
-    // MÓVIL B (Dispositivo Genérico 2)
     MobilePhoneSimulator phone2 = new MobilePhoneSimulator(engine, repository);
     phone2.setTitle("Smartphone - Dispositivo B");
 
