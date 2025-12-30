@@ -1,18 +1,12 @@
 package com.securebank.observers;
 
 import com.securebank.interfaces.IBankObserver;
-import com.securebank.main.BankAdminConsole;
 import com.securebank.models.Transaction;
 import org.springframework.stereotype.Component;
 import java.security.MessageDigest;
 
 @Component
 public class GeneralLedger implements IBankObserver {
-  private BankAdminConsole console;
-
-  public GeneralLedger(BankAdminConsole console) {
-    this.console = console;
-  }
 
   @Override
   public void onTransactionAttempt(Transaction tx) {
@@ -20,8 +14,8 @@ public class GeneralLedger implements IBankObserver {
     String rawData = tx.getSourceIban() + tx.getDestIban() + tx.getAmount() + tx.getConcept();
     String hash = calculateSHA256(rawData);
 
-    // Lo mandamos a la consola visual
-    console.addLedgerEntry(rawData, hash);
+    // Lo mandamos a la consola del sistema
+    System.out.println("⛓️ LEDGER: Bloque minado. Hash: " + hash.substring(0, 16) + "...");
   }
 
   private String calculateSHA256(String data) {

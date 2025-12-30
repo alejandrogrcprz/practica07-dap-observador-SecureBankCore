@@ -23,13 +23,15 @@ public class MainSystem {
       .run(args);
   }
 
-  // --- 1. BEAN DE LA CONSOLA (Esto es lo que faltaba) ---
-  @Bean
-  public BankAdminConsole bankAdminConsole() {
+// BORRAR O COMENTAR ESTO:
+/*
+@Bean
+public BankAdminConsole bankAdminConsole() {
     BankAdminConsole console = new BankAdminConsole();
-    console.setVisible(true); // Hace que la ventana aparezca al arrancar
+    console.setVisible(true);
     return console;
-  }
+}
+*/
 
   // --- 2. GENERADOR DE DATOS (Tu código de población) ---
   @Bean

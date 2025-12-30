@@ -1,4 +1,4 @@
-package com.securebank.services;
+package com.securebank.observers;
 
 import com.securebank.interfaces.IBankObserver;
 import com.securebank.models.Transaction;
@@ -32,7 +32,7 @@ public class FraudDetectorAI implements IBankObserver {
     String iban = tx.getSourceIban();
     double currentAmount = tx.getAmount();
     long now = System.currentTimeMillis();
-    String concept = tx.getConcept().toUpperCase();
+    String concept = tx.getConcept() != null ? tx.getConcept().toUpperCase() : "";
 
     // 1. REGLA VELOCIDAD
     if (lastTime.containsKey(iban)) {
@@ -58,17 +58,18 @@ public class FraudDetectorAI implements IBankObserver {
 
     // 4. REGLA DICCIONARIO NEGRO (Búsqueda parcial)
     for (String badWord : BLACKLIST_WORDS) {
-      // Buscamos que la palabra esté contenida (ej: "PAGO COCAINA" detecta "COCA")
       if (concept.contains(badWord)) {
-        System.out.println("ALERTA BLOQUEO: " + badWord + " detectado en " + concept);
+        System.out.println("🚨 ALERTA BLOQUEO: " + badWord + " detectado en " + concept);
         throw new SecurityException("🚫 Operación denegada por Política de Cumplimiento (Compliance Code: R-99).");
       }
     }
 
     // 5. GEO-BLOQUEO
-    String destPrefix = tx.getDestIban().substring(0, 2).toUpperCase();
-    if (List.of("RU", "KP", "IR", "KY", "SY").contains(destPrefix)) {
-      throw new SecurityException("🌐 Destino no autorizado por sanciones internacionales.");
+    if (tx.getDestIban() != null && tx.getDestIban().length() >= 2) {
+      String destPrefix = tx.getDestIban().substring(0, 2).toUpperCase();
+      if (List.of("RU", "KP", "IR", "KY", "SY").contains(destPrefix)) {
+        throw new SecurityException("🌐 Destino no autorizado por sanciones internacionales.");
+      }
     }
 
     lastTime.put(iban, now);
