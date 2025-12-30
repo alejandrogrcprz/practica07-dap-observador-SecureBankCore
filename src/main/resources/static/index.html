@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SecureBank Ultimate</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --accent: #3b82f6; --green: #22c55e; --red: #ef4444; --text: #f1f5f9; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; min-height: 100vh; display: flex; justify-content: center; }
+
+        /* LAYOUT */
+        #auth-view { display: flex; height: 100vh; align-items: center; justify-content: center; width: 100%; }
+        .box { background: var(--panel); padding: 40px; border-radius: 12px; width: 320px; text-align: center; }
+        .tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid #334155; }
+        .tab { flex: 1; padding: 10px; cursor: pointer; color: #64748b; }
+        .tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); font-weight: bold; }
+
+        input, select { width: 100%; padding: 12px; background: #334155; border: 1px solid #475569; color: white; border-radius: 6px; margin: 8px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        button:disabled { background: #475569; opacity: 0.7; }
+
+        /* DASHBOARD */
+        #dashboard-view { display: none; width: 100%; max-width: 1300px; padding: 20px; }
+        .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .card { background: var(--panel); padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        .acc-item { background: #020617; padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+
+        /* TABLE & UI */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
+        th { text-align: left; color: #64748b; padding: 8px; border-bottom: 1px solid #334155; }
+        td { padding: 10px 8px; border-bottom: 1px solid #334155; }
+        .amount-pos { color: var(--green); font-weight: bold; }
+        .amount-neg { color: var(--red); font-weight: bold; }
+        .balance-row { color: #94a3b8; font-size: 0.85em; }
+
+        .coin-selector { display: flex; gap: 10px; margin-bottom: 15px; }
+        .coin-btn { background: #334155; border: 1px solid #475569; flex: 1; padding: 10px; text-align: center; cursor: pointer; border-radius: 6px; }
+        .coin-btn.active { background: var(--accent); border-color: var(--accent); }
+
+        #security-btn { background: #334155; border: 1px dashed #64748b; color: #94a3b8; font-size: 0.9em; margin-top: 10px; }
+        #security-btn:hover { background: #475569; color: white; }
+
+        /* MODAL */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-content {
+            background: var(--panel); padding: 30px; border-radius: 12px; width: 320px; text-align: center;
+            border: 1px solid #475569; box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+        }
+    </style>
+</head>
+<body>
+
+<div id="auth-view">
+    <div class="box">
+        <h2>🔐 SecureBank ID</h2>
+        <div class="tabs"><div class="tab active" onclick="showTab('login')">Entrar</div><div class="tab" onclick="showTab('reg')">Registro</div></div>
+        <div id="login-form">
+            <input type="text" id="l-dni" placeholder="DNI">
+            <input type="password" id="l-pass" placeholder="Contraseña">
+            <button id="btn-login" onclick="login()">INICIAR SESIÓN</button>
+        </div>
+        <div id="reg-form" style="display:none;">
+            <input type="text" id="r-dni" placeholder="DNI">
+            <input type="text" id="r-name" placeholder="Nombre">
+            <input type="text" id="r-last" placeholder="Apellidos">
+            <input type="password" id="r-pass" placeholder="Contraseña">
+            <button onclick="register()">CREAR CUENTA</button>
+        </div>
+    </div>
+</div>
+
+<div id="dashboard-view">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+        <h1>Hola, <span id="user-display"></span></h1>
+        <button onclick="location.reload()" style="background: #ef4444; width: auto; padding: 8px 20px;">Salir</button>
+    </div>
+
+    <div class="grid">
+        <div>
+            <div class="card">
+                <h3>💳 Mis Cuentas</h3>
+                <div id="acc-list"></div>
+            </div>
+
+            <div class="card">
+                <h3>💸 Transferencia Internacional</h3>
+                <select id="t-source"></select>
+                <input type="text" id="t-dest" placeholder="IBAN (Ej: DE123...)" pattern="[A-Z]{2}[0-9]{22}" onblur="checkIban()" style="text-transform: uppercase;">
+                <div id="iban-check" style="height:20px; font-size:0.9em;"></div>
+                <div style="display:flex; gap:10px;">
+                    <input type="number" id="t-amount" placeholder="€ Importe">
+                    <input type="text" id="t-concept" placeholder="Concepto">
+                </div>
+                <button onclick="transfer()">ENVIAR DINERO</button>
+            </div>
+
+            <div class="card">
+                <h3>📄 Historial de Movimientos</h3>
+                <table id="history-table">
+                    <thead>
+                    <tr>
+                        <th>Concepto</th>
+                        <th style="text-align:right">Importe</th>
+                        <th style="text-align:center; width:50px;">PDF</th>
+                    </tr>
+                    </thead>
+                    <tbody id="history-body">
+                    <tr><td colspan="3" style="text-align:center">Cargando...</td></tr>
+                    </tbody>
+                </table>
+                <button id="security-btn" onclick="openSecurityModal()" style="display:none;">🔒 Ver historial completo</button>
+            </div>
+        </div>
+
+        <div>
+            <div class="card">
+                <h3>📊 Gastos por Categoría</h3>
+                <div style="height: 200px;"><canvas id="expensesChart"></canvas></div>
+            </div>
+
+            <div class="card">
+                <h3>📅 Evolución Mensual</h3>
+                <div style="height: 200px;"><canvas id="monthlyChart"></canvas></div>
+            </div>
+
+            <div class="card">
+                <h3>💱 Conversor</h3>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" id="conv-amount" value="1" oninput="convertCurrency()">
+                    <select id="conv-from" onchange="convertCurrency()">
+                        <option value="EUR">EUR</option><option value="USD">USD</option><option value="GBP">GBP</option><option value="JPY">JPY</option><option value="BTC">BTC</option>
+                    </select>
+                </div>
+                <div style="text-align:center; margin: 5px 0;">⬇️</div>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="conv-result" readonly style="font-weight:bold; color:var(--green)">
+                    <select id="conv-to" onchange="convertCurrency()">
+                        <option value="USD" selected>USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option><option value="BTC">BTC</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🚀 Crypto Live</h3>
+                <div class="coin-selector">
+                    <div id="btn-bitcoin" class="coin-btn active" onclick="setCoin('bitcoin')">BTC</div>
+                    <div id="btn-ethereum" class="coin-btn" onclick="setCoin('ethereum')">ETH</div>
+                    <div id="btn-solana" class="coin-btn" onclick="setCoin('solana')">SOL</div>
+                </div>
+                <h2 style="text-align:center; color:#22c55e" id="live-price">...</h2>
+                <canvas id="cryptoChart" height="150"></canvas>
+                <div style="margin-top: 15px;">
+                    <input type="number" id="trade-eur" placeholder="€ Cantidad">
+                    <div style="display:flex; gap:10px;">
+                        <button style="background:var(--green)" onclick="trade('BUY')">COMPRAR</button>
+                        <button style="background:var(--red)" onclick="trade('SELL')">VENDER</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card"><h3>💼 Portfolio</h3><div id="portfolio-list"></div></div>
+        </div>
+    </div>
+</div>
+
+<div id="security-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>🔐 Control de Seguridad</h3>
+        <p style="color:#94a3b8; font-size:0.9em; margin-bottom:20px;">Confirma tu identidad para acceder a los datos sensibles.</p>
+        <input type="password" id="sec-pass" placeholder="Introduce tu contraseña">
+        <div id="sec-error" style="color:#ef4444; font-size:0.8em; margin-top:5px; height:15px;"></div>
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button onclick="closeSecurityModal()" style="background:#334155">Cancelar</button>
+            <button onclick="confirmUnlock()" style="background:var(--accent)">Desbloquear</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let user = null;
+    let selectedCoin = 'bitcoin';
+    let currentPrice = null;
+    let cryptoChart = null, expensesChart = null, monthlyChart = null;
+    let updateInterval = null, fiatRates = null;
+    const CRYPTO_FALLBACK = { 'bitcoin': 65000, 'ethereum': 3500, 'solana': 140 };
+
+    let allTransactionsCache = [];
+    let currentIban = null;
+    let currentBalance = 0;
+
+    function showTab(t) {
+        document.getElementById('login-form').style.display = t==='login'?'block':'none';
+        document.getElementById('reg-form').style.display = t==='reg'?'block':'none';
+        document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
+        event.target.classList.add('active');
+    }
+
+    async function login() {
+        const dni = document.getElementById('l-dni').value;
+        const pass = document.getElementById('l-pass').value;
+        try {
+            const r = await fetch('/api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({dni, password:pass})});
+            if(r.ok) { user = await r.json(); startDashboard(); } else alert("Datos incorrectos");
+        } catch(e) { alert("Error de conexión"); }
+    }
+
+    async function register() {
+        const data = { dni: document.getElementById('r-dni').value, firstName: document.getElementById('r-name').value, lastName: document.getElementById('r-last').value, password: document.getElementById('r-pass').value };
+        const r = await fetch('/api/register', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+        if(r.ok) { alert("Registrado"); showTab('login'); } else alert(await r.text());
+    }
+
+    function startDashboard() {
+        document.getElementById('auth-view').style.display = 'none';
+        document.getElementById('dashboard-view').style.display = 'block';
+        document.getElementById('user-display').innerText = user.firstName;
+        loadData();
+        initCrypto();
+        fetchFiatRates();
+    }
+
+    async function loadData() {
+        try {
+            const accRes = await fetch(`/api/accounts/${user.id}`);
+            const accounts = await accRes.json();
+            const list = document.getElementById('acc-list');
+            const sel = document.getElementById('t-source');
+            list.innerHTML = ''; sel.innerHTML = '';
+
+            accounts.forEach(a => {
+                list.innerHTML += `<div class="acc-item"><div><small>${a.iban}</small><br><b>${a.alias}</b></div><div style="text-align:right"><span style="color:#22c55e; font-weight:bold;">${a.balance.toFixed(2)} €</span><br><button onclick="depositMoney('${a.iban}')" style="padding:4px; font-size:0.8em;">+ INGRESAR</button></div></div>`;
+                let o = document.createElement('option'); o.value = a.iban; o.text = `${a.alias} (${a.balance.toFixed(2)} €)`;
+                sel.add(o);
+            });
+
+            try {
+                const portRes = await fetch(`/api/crypto/portfolio/${user.id}`);
+                let port = [];
+                if (portRes.ok) try { port = await portRes.json(); } catch(e) { port = []; }
+                if (!Array.isArray(port)) port = [];
+                document.getElementById('portfolio-list').innerHTML = port.map(p =>
+                    p.amount > 0.0001 ? `<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #333"><b>${p.symbol}</b><span>${p.amount.toFixed(5)}</span></div>` : ''
+                ).join('');
+            } catch (e) {}
+
+            if(accounts.length) {
+                currentIban = accounts[0].iban;
+                currentBalance = accounts[0].balance;
+
+                setTimeout(() => updateExpenses(currentIban), 10);
+                setTimeout(() => updateMonthly(currentIban), 10);
+                setTimeout(() => fetchHistoryAndShowRestricted(currentIban, currentBalance), 10);
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function fetchHistoryAndShowRestricted(iban, balance) {
+        const tbody = document.getElementById('history-body');
+        const btn = document.getElementById('security-btn');
+
+        try {
+            const r = await fetch(`/api/history/${iban}?t=${Date.now()}`);
+            if(!r.ok) throw new Error("API Error");
+
+            allTransactionsCache = await r.json();
+
+            if(allTransactionsCache.length <= 5) {
+                renderTable(allTransactionsCache, iban, balance);
+                btn.style.display = 'none';
+            } else {
+                renderTable(allTransactionsCache.slice(0, 5), iban, balance);
+                btn.style.display = 'block';
+                btn.innerText = "🔒 Ver historial completo (" + (allTransactionsCache.length - 5) + " más)";
+            }
+        } catch(e) { tbody.innerHTML = `<tr><td colspan="3" style="color:red;text-align:center">Error</td></tr>`; }
+    }
+
+    function renderTable(txs, iban, balance) {
+        const tbody = document.getElementById('history-body');
+        tbody.innerHTML = '';
+
+        if(txs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center">Sin movimientos</td></tr>';
+            return;
+        }
+
+        let runBal = balance;
+        let html = '';
+        for(let tx of txs) {
+            let isExpense = (tx.sourceIban === iban && tx.destIban !== iban);
+            let amount = tx.amount;
+            let color = isExpense ? 'amount-neg' : 'amount-pos';
+            let sign = isExpense ? '-' : '+';
+            let rawDate = tx.date || tx.timestamp;
+            let fecha = rawDate ? new Date(rawDate).toLocaleString() : "Fecha desc.";
+
+            // CAMBIO: AÑADIDO BOTÓN DE PDF (COLUMNA 3)
+            html += `<tr>
+                    <td><b>${tx.concept||'Varios'}</b><br><small style="color:gray">${fecha}</small></td>
+                    <td style="text-align:right">
+                        <div class="${color}">${sign} ${amount.toFixed(2)} €</div>
+                        <small class="balance-row">Saldo: ${runBal.toFixed(2)} €</small>
+                    </td>
+                    <td style="text-align:center; vertical-align: middle;">
+                        <a href="/api/export-pdf/${tx.id}" target="_blank" style="text-decoration:none; font-size:1.2em; cursor:pointer;" title="Descargar Justificante">📄</a>
+                    </td>
+                </tr>`;
+
+            if(isExpense) runBal += amount; else runBal -= amount;
+        }
+        tbody.innerHTML = html;
+    }
+
+    function openSecurityModal() {
+        document.getElementById('sec-pass').value = '';
+        document.getElementById('sec-error').innerText = '';
+        document.getElementById('security-modal').style.display = 'flex';
+    }
+
+    function closeSecurityModal() {
+        document.getElementById('security-modal').style.display = 'none';
+    }
+
+    async function confirmUnlock() {
+        const pass = document.getElementById('sec-pass').value;
+        const errDiv = document.getElementById('sec-error');
+
+        if(!pass) { errDiv.innerText = "Introduce la contraseña"; return; }
+
+        try {
+            const r = await fetch('/api/verify-pass', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ userId: user.id, password: pass })
+            });
+
+            if (r.ok) {
+                renderTable(allTransactionsCache, currentIban, currentBalance);
+                document.getElementById('security-btn').style.display = 'none';
+                closeSecurityModal();
+            } else {
+                errDiv.innerText = "⚠️ Contraseña incorrecta";
+            }
+        } catch (e) {
+            errDiv.innerText = "⚠️ Error de red";
+        }
+    }
+
+    // --- EXTRAS ---
+    async function depositMoney(iban) {
+        const amount = prompt("Cantidad a ingresar (€):");
+        if (amount && parseFloat(amount) > 0) {
+            await fetch('/api/deposit', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({iban: iban, amount: amount})});
+            loadData();
+        }
+    }
+    async function checkIban() {
+        const i = document.getElementById('t-dest');
+        const div = document.getElementById('iban-check');
+        i.value = i.value.toUpperCase().trim();
+        if(!i.value) { div.innerHTML = ""; return; }
+        if(!/^[A-Z]{2}[0-9]{22}$/.test(i.value)) { div.innerHTML = '<span style="color:#ef4444">⚠️ Formato incorrecto</span>'; return; }
+        try {
+            const r = await fetch(`/api/beneficiary/${i.value}`);
+            if(r.ok) div.innerHTML = `<span style="color:#22c55e">✅ IBAN Válido (${await r.text()})</span>`;
+            else div.innerHTML = '<span style="color:#ef4444">❌ Inválido</span>';
+        } catch(e) {}
+    }
+    async function transfer() {
+        const r = await fetch('/api/transfer', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sourceIban: document.getElementById('t-source').value, destIban: document.getElementById('t-dest').value, amount: document.getElementById('t-amount').value, concept: document.getElementById('t-concept').value})});
+        if(r.ok) { alert("Éxito"); loadData(); } else alert("Error: " + await r.text());
+    }
+    async function updateExpenses(iban) {
+        try {
+            const r = await fetch(`/api/expenses-chart/${iban}?t=${Date.now()}`);
+            const d = await r.json();
+            const ctx = document.getElementById('expensesChart').getContext('2d');
+            if(expensesChart) expensesChart.destroy();
+            const labels = Object.keys(d).length ? Object.keys(d) : ['Sin Gastos'];
+            const data = Object.keys(d).length ? Object.values(d) : [1];
+            const colors = ['#3b82f6','#ef4444','#eab308','#22c55e','#8b5cf6','#ec4899','#f97316'];
+            expensesChart = new Chart(ctx, {type: 'doughnut', data: {labels: labels, datasets: [{data: data, backgroundColor: colors, borderWidth: 0}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position:'right', labels:{color:'white'}}}}});
+        } catch(e) {}
+    }
+    async function updateMonthly(iban) {
+        try {
+            const r = await fetch(`/api/monthly-chart/${iban}?t=${Date.now()}`);
+            const d = await r.json();
+            const ctx = document.getElementById('monthlyChart').getContext('2d');
+            if(monthlyChart) monthlyChart.destroy();
+            monthlyChart = new Chart(ctx, {type: 'bar', data: {labels: Object.keys(d), datasets: [{label: 'Gastos', data: Object.values(d), backgroundColor: '#3b82f6', borderRadius: 4}]}, options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {y: {beginAtZero: true, grid: {color:'#334155'}, ticks:{color:'#94a3b8'}}, x:{grid:{display:false}, ticks:{color:'#94a3b8'}}}}});
+        } catch(e) {}
+    }
+
+    async function fetchFiatRates() { try { let r = await fetch('https://open.er-api.com/v6/latest/EUR'); fiatRates = (await r.json()).rates; } catch(e) { fiatRates = null; } }
+    function convertCurrency() {
+        const a = parseFloat(document.getElementById('conv-amount').value); const f = document.getElementById('conv-from').value; const t = document.getElementById('conv-to').value; const res = document.getElementById('conv-result');
+        if(!fiatRates && f!=='BTC' && t!=='BTC') { res.value="Sin API"; return; }
+        const getR = c => c==='BTC' ? 1/(currentPrice||65000) : fiatRates[c]||1;
+        res.value = ((a/getR(f))*getR(t)).toFixed(t==='BTC'?6:2);
+    }
+    function setCoin(c) {
+        selectedCoin = c; document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+c).classList.add('active');
+        if(cryptoChart) { cryptoChart.data.datasets[0].data = new Array(20).fill(null); cryptoChart.update(); }
+        if(updateInterval) clearInterval(updateInterval); fetchPrice(); updateInterval = setInterval(fetchPrice, 2000);
+    }
+    async function fetchPrice() {
+        let p = null; try { const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${selectedCoin}&vs_currencies=eur`); if(r.ok) p = (await r.json())[selectedCoin].eur; } catch(e) { let b = currentPrice||CRYPTO_FALLBACK[selectedCoin]; p = b+(Math.random()-0.5)*(b*0.002); }
+        currentPrice = p; document.getElementById('live-price').innerText = p.toLocaleString('es-ES', {style:'currency', currency:'EUR'});
+        if(document.getElementById('conv-from').value === 'BTC' || document.getElementById('conv-to').value === 'BTC') { convertCurrency(); }
+        if(cryptoChart) { cryptoChart.data.datasets[0].data.push(p); if(cryptoChart.data.datasets[0].data.length>20) cryptoChart.data.datasets[0].data.shift(); cryptoChart.update('none'); }
+    }
+    function initCrypto() {
+        const ctx = document.getElementById('cryptoChart').getContext('2d');
+        cryptoChart = new Chart(ctx, { type: 'line', data: { labels: new Array(20).fill(''), datasets: [{ data: new Array(20).fill(null), borderColor: '#22c55e', tension: 0.4, pointRadius: 0 }] }, options: { responsive: true, scales: { x: {display: false}, y: {display: true, ticks:{color:'#64748b'}} }, plugins: { legend: {display: false} }, animation: false } });
+        setCoin('bitcoin');
+    }
+    async function trade(t) {
+        const r = await fetch('/api/crypto/trade', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({userId:user.id, iban:document.getElementById('t-source').value, symbol:selectedCoin==='bitcoin'?'BTC':(selectedCoin==='ethereum'?'ETH':'SOL'), type:t, amountEur:document.getElementById('trade-eur').value, currentPrice:currentPrice})});
+        if(r.ok) { alert("Éxito"); loadData(); } else alert("Error: " + await r.text());
+    }
+    function swapCurrencies() {
+        const f = document.getElementById('conv-from');
+        const t = document.getElementById('conv-to');
+        const x = f.value; f.value = t.value; t.value = x;
+        convertCurrency();
+    }
+</script>
+</body>
+</html>
