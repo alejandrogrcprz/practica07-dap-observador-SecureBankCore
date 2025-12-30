@@ -16,8 +16,8 @@ Thumbs.db
 # El historial de transacciones se crea al usar la app, no debe subirse
 bank_history.csv
 
-# Evitar subir recibos generados ---
-recibos_movil/
+/target
+target/
 
 # NOTA: blocked_concepts.csv SÍ lo dejamos porque son los datos iniciales de la app
 # y no contienen información sensible.
