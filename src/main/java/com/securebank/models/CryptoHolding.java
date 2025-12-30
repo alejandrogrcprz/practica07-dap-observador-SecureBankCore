@@ -9,8 +9,8 @@ public class CryptoHolding {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  private String symbol; // BTC, ETH, SOL
-  private double amount; // Cantidad de monedas (ej: 0.5 BTC)
+  private String symbol;
+  private double amount;
 
   @ManyToOne
   @JoinColumn(name = "user_id")
@@ -24,7 +24,6 @@ public class CryptoHolding {
     this.owner = owner;
   }
 
-  // Getters y Setters
   public String getSymbol() { return symbol; }
   public double getAmount() { return amount; }
   public void setAmount(double amount) { this.amount = amount; }

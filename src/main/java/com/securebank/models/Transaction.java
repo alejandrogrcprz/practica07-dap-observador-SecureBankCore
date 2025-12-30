@@ -17,7 +17,6 @@ public class Transaction {
 
   public Transaction() {}
 
-  // ESTE ES EL CONSTRUCTOR QUE TE FALTABA (5 ARGUMENTOS)
   public Transaction(String sourceIban, String destIban, double amount, String concept, LocalDateTime date) {
     this.sourceIban = sourceIban;
     this.destIban = destIban;
@@ -26,7 +25,6 @@ public class Transaction {
     this.date = date;
   }
 
-  // Getters y Setters
   public Long getId() { return id; }
   public String getSourceIban() { return sourceIban; }
   public String getDestIban() { return destIban; }
