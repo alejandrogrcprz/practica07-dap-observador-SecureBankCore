@@ -1,0 +1,193 @@
+@startuml
+class com.securebank.main.BankAdminConsole {
+- JTextArea ledgerArea
+- JLabel lblStep1
+- JProgressBar progressCPU
+- List<String> secretLedgerData
+- JTable historyTable
+- DefaultTableModel tableModel
+- JLabel lblKpiVolume
+- String CSV_FILE
+- void setupDarkTheme()
+- JPanel createLiveMonitor()
+- JPanel createDataPanel()
++ void logToSystem(String)
++ void addLedgerEntry(String,String)
++ void animateFraudCheck(String)
+- void failSequence()
++ void onTransactionExecuted(String)
+- void startServerSimulation()
+- void spikeCpu()
+- void updateKPIs()
+- void saveToCSV(String[])
+- void loadHistoryFromDisk()
+- void unlockLedger()
+- void resetLabels(boolean)
+- JPanel createPanel(String)
+- JLabel createLabel(String)
+- void updateLabel(JLabel,String,Color)
+- JLabel createKpiCard(String,String,Color)
+}
+
+
+class com.securebank.observers.NotificationService {
+- BankAdminConsole console
++ void onTransactionExecuted(String)
+}
+
+
+class com.securebank.observers.FraudDetectorAI {
+- BankAdminConsole console
++ void onTransactionExecuted(String)
+}
+
+
+class com.securebank.observers.GeneralLedger {
+- BankAdminConsole console
++ void onTransactionExecuted(String)
+- String calculateSHA256(String)
+}
+
+
+interface com.securebank.interfaces.ITransactionSubject {
+~ void attach(IBankObserver)
+~ void detach(IBankObserver)
+~ void notifyObservers(String)
+}
+
+class com.securebank.observers.AuditLogger {
+- BankAdminConsole console
++ void onTransactionExecuted(String)
+}
+
+
+interface com.securebank.interfaces.IBankObserver {
+~ void onTransactionExecuted(String)
+}
+
+class com.securebank.core.TransactionEngine {
+- List<IBankObserver> observers
++ void attach(IBankObserver)
++ void detach(IBankObserver)
++ void notifyObservers(String)
++ void executeTransfer(double,String,String,String,String,String)
++ void reportIncident(String,String)
+}
+
+
+class com.securebank.main.MainSystem {
++ {static} void main(String[])
+}
+
+class com.securebank.main.BankRepository {
+- List<String> rawData
+- List<String> blackListTerms
+- List<String> csvBlockedConcepts
+- void loadDataFromCore()
+- void loadBlockedConceptsCsv()
+- void loadSecurityLists()
+- void saveChangesToDisk()
++ String[] getAccountsArray()
++ List<String> findAccountsByDNI(String)
++ String getBeneficiaryNameByIBAN(String)
++ List<String> getBlackList()
++ List<String> getCsvBlockedConcepts()
++ boolean processTransfer(String,String,double)
+}
+
+
+interface com.securebank.main.IBankRepository {
+~ String[] getAccountsArray()
+~ List<String> findAccountsByDNI(String)
+~ List<String> getBlackList()
+~ List<String> getCsvBlockedConcepts()
+~ String getBeneficiaryNameByIBAN(String)
+~ boolean processTransfer(String,String,double)
+}
+
+class com.securebank.main.MobilePhoneSimulator {
+- TransactionEngine engine
+- IBankRepository repository
+- List<String> myIbans
+- boolean isBankLoggedIn
+- long lastTransferTimestamp
+- JLayeredPane layeredPane
+- JPanel mainOSPanel
+- JPanel notificationBanner
+- JLabel lblNotifTitle
+- Timer notifTimer
+- JLabel lblStatusBarTime
+- JLabel lblNotifIcon
+- CardLayout osLayout
+- JPanel homeScreen
+- DefaultListModel<NotificationData> smsListModel
+- DefaultListModel<NotificationData> bankNotifListModel
+- DefaultListModel<String> downloadsListModel
+- JComboBox<String> comboAccounts
+- JTextField txtIban
+- JTextField txtUserLogin
+- void initApps()
+- void createNotificationBanner()
++ void showHeadsUp(String,String,Color)
+- void initHomeScreen()
+- JButton createAppIcon(String,String,Color)
+- void showDetailedNotification(String,NotificationData)
+- void showWhiteDialog(String,String,int)
+- int showWhiteConfirmDialog(String,String)
+- void styleDialogs()
+- void initDownloadsApp()
+- void initSmsApp()
+- void initBankApp()
+- void styleBtn(JButton)
+- void initTransferScreen()
+- JTextField createPlaceholderField(String)
+- void addFormField(JPanel,String,JComponent,GridBagConstraints)
+- void initNotificationScreen()
+- void doTransfer()
++ void onTransactionExecuted(String)
+- void initReceiptScreen()
+- void saveFileToDownloads(String,String)
+- void showHtmlContent(String,String)
+- void generateAndShowReceipt(String,String,String,String,String,String,String)
+- double extractBalance(String)
+- void updateAccountBalanceInUI(double,boolean)
+}
+
+
+class com.securebank.main.MobilePhoneSimulator$NotificationData {
+~ String title
+~ String typeTitle
+~ boolean canDownloadReceipt
++ void setReceiptDetails(String,String,String,String,String,String,String)
++ String toString()
+}
+
+
+class com.securebank.main.MobilePhoneSimulator$BubbleRenderer {
+~ Color bg
++ Component getListCellRendererComponent(JList<?>,Object,int,boolean,boolean)
+}
+
+
+class com.securebank.main.MobilePhoneSimulator$AccountRenderer {
++ Component getListCellRendererComponent(JList<?>,Object,int,boolean,boolean)
+}
+
+
+
+com.securebank.interfaces.IBankObserver <|.. com.securebank.main.BankAdminConsole
+com.securebank.main.JFrame <|-- com.securebank.main.BankAdminConsole
+com.securebank.interfaces.IBankObserver <|.. com.securebank.observers.NotificationService
+com.securebank.interfaces.IBankObserver <|.. com.securebank.observers.FraudDetectorAI
+com.securebank.interfaces.IBankObserver <|.. com.securebank.observers.GeneralLedger
+com.securebank.interfaces.IBankObserver <|.. com.securebank.observers.AuditLogger
+com.securebank.interfaces.ITransactionSubject <|.. com.securebank.core.TransactionEngine
+com.securebank.main.IBankRepository <|.. com.securebank.main.BankRepository
+com.securebank.interfaces.IBankObserver <|.. com.securebank.main.MobilePhoneSimulator
+com.securebank.main.JFrame <|-- com.securebank.main.MobilePhoneSimulator
+com.securebank.main.MobilePhoneSimulator +.. com.securebank.main.MobilePhoneSimulator$NotificationData
+com.securebank.main.MobilePhoneSimulator +.. com.securebank.main.MobilePhoneSimulator$BubbleRenderer
+com.securebank.main.DefaultListCellRenderer <|-- com.securebank.main.MobilePhoneSimulator$BubbleRenderer
+com.securebank.main.MobilePhoneSimulator +.. com.securebank.main.MobilePhoneSimulator$AccountRenderer
+com.securebank.main.DefaultListCellRenderer <|-- com.securebank.main.MobilePhoneSimulator$AccountRenderer
+@enduml
