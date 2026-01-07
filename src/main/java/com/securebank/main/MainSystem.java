@@ -17,23 +17,16 @@ import java.util.Random;
 public class MainSystem {
 
   public static void main(String[] args) {
-    // IMPORTANTE: .headless(false) permite que se abran ventanas como la consola Swing
+    // CAMBIO RADICAL: Usamos una base de datos nueva 'bankdb_v2' y simplificamos la URL
+    System.setProperty("spring.datasource.url", "jdbc:h2:file:./data/bankdb_v2;AUTO_SERVER=TRUE");
+
+    // Arrancamos la aplicación
     new SpringApplicationBuilder(MainSystem.class)
       .headless(false)
       .run(args);
   }
 
-// BORRAR O COMENTAR ESTO:
-/*
-@Bean
-public BankAdminConsole bankAdminConsole() {
-    BankAdminConsole console = new BankAdminConsole();
-    console.setVisible(true);
-    return console;
-}
-*/
-
-  // --- 2. GENERADOR DE DATOS (Tu código de población) ---
+  // --- GENERADOR DE DATOS DE PRUEBA ---
   @Bean
   public CommandLineRunner dataSeeder(UserRepository userRepo, AccountRepository accRepo) {
     return args -> {
@@ -55,6 +48,8 @@ public BankAdminConsole bankAdminConsole() {
         String dni = (rand.nextInt(89999999) + 10000000) + getRandomLetter();
 
         User u = new User(dni, nombre, apellido1 + " " + apellido2, "1234");
+        // Aseguramos que los usuarios random no sean premium por defecto (para probar comisiones)
+        u.setPremium(false);
         userRepo.save(u);
 
         // 2. Crear entre 1 y 3 cuentas por usuario
@@ -68,6 +63,7 @@ public BankAdminConsole bankAdminConsole() {
 
       // Usuario Admin Fijo para ti
       User admin = new User("11111111A", "Admin", "Supremo", "admin");
+      admin.setPremium(true); // El admin es Premium (0 comisiones)
       userRepo.save(admin);
       accRepo.save(new Account("ES0000000000000000000001", "Bóveda Central", 1000000.0, admin));
 
