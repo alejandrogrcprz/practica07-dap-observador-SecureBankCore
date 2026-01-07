@@ -17,129 +17,112 @@ public class BankService {
   @Autowired private TransactionRepository transactionRepo;
   @Autowired private UserRepository userRepo;
   @Autowired private CryptoRepository cryptoRepo;
-  @Autowired private SavingsGoalRepository goalRepo; // <--- NUEVO
+  @Autowired(required = false) private List<IBankObserver> observers;
 
-  @Autowired(required = false)
-  private List<IBankObserver> observers;
-
-  // --- MÉTODOS BANCARIOS ---
-  public String getBeneficiaryName(String iban) {
-    return accountRepo.findById(iban)
-      .map(acc -> acc.getOwner().getFirstName() + " " + acc.getOwner().getLastName())
-      .orElse(null);
-  }
-
+  // --- INFO ---
   public List<Transaction> getHistory(String iban) {
     return transactionRepo.findBySourceIbanOrDestIbanOrderByDateDesc(iban, iban);
   }
 
-  public String executeTransfer(String sourceIban, String destIban, double amount, String concept) {
-    if (amount <= 0) return "Importe debe ser positivo";
-    Optional<Account> optSource = accountRepo.findById(sourceIban);
-    Optional<Account> optDest = accountRepo.findById(destIban);
+  // --- TRANSFERENCIAS CON BLOQUEO ---
+  // ... dentro de BankService.java ...
 
-    if (optSource.isEmpty()) return "Cuenta origen no existe";
+  public void processTransaction(TransactionDto tx) {
+    // 1. Validaciones previas (Origen, Congelación, Saldo...)
+    Optional<Account> optSource = accountRepo.findById(tx.getSourceIban());
+    if (optSource.isEmpty()) throw new RuntimeException("Cuenta origen no existe");
     Account source = optSource.get();
 
-    if (source.getBalance() < amount) return "Fondos insuficientes";
+    if (source.isFrozen()) throw new RuntimeException("TARJETA CONGELADA. Desbloquéala para operar.");
+    if (source.getBalance() < tx.getAmount()) throw new RuntimeException("Saldo insuficiente");
 
-    Transaction tx = new Transaction(sourceIban, destIban, amount, concept, LocalDateTime.now());
+    // 2. Fraude Check
+    Transaction transaction = new Transaction(tx.getSourceIban(), tx.getDestIban(), tx.getAmount(), tx.getConcept(), LocalDateTime.now());
+    try { if (observers != null) for (IBankObserver obs : observers) obs.onTransactionAttempt(transaction); }
+    catch (Exception e) { throw new RuntimeException(e.getMessage()); }
 
-    if (observers != null) {
-      for (IBankObserver obs : observers) {
-        try { obs.onTransactionAttempt(tx); }
-        catch (SecurityException e) { return e.getMessage(); }
-      }
+    // 3. EJECUTAR TRANSFERENCIA (Restar dinero)
+    source.setBalance(source.getBalance() - tx.getAmount());
+
+    // --- LOGICA CASHBACK (NUEVO) ---
+    // Si el dueño es Premium, le devolvemos el 1%
+    User owner = source.getOwner();
+    if (owner.isPremium()) {
+      double cashback = tx.getAmount() * 0.01; // 1%
+      owner.setAccumulatedCashback(owner.getAccumulatedCashback() + cashback);
+      userRepo.save(owner); // Guardamos el usuario con su nuevo saldo de regalo
     }
+    // -------------------------------
 
-    source.setBalance(source.getBalance() - amount);
     accountRepo.save(source);
 
+    // 4. Sumar al destino (si es interno)
+    Optional<Account> optDest = accountRepo.findById(tx.getDestIban());
     if (optDest.isPresent()) {
       Account dest = optDest.get();
-      dest.setBalance(dest.getBalance() + amount);
+      dest.setBalance(dest.getBalance() + tx.getAmount());
       accountRepo.save(dest);
     }
-
-    transactionRepo.save(tx);
-    return "OK";
+    transactionRepo.save(transaction);
   }
 
-  // --- CRIPTOMONEDAS ---
-  public List<CryptoHolding> getCryptoPortfolio(Long userId) {
-    return cryptoRepo.findByOwnerId(userId);
-  }
-
-  public String executeCryptoTrade(long userId, String iban, String symbol, String type, double amountEur, double currentPrice) {
+  // --- HUCHA Y REDONDEO (NUEVO) ---
+  public void processSavings(String iban, double amount) {
     Optional<Account> optAcc = accountRepo.findById(iban);
-    if (optAcc.isEmpty()) return "Cuenta no encontrada";
-    Account acc = optAcc.get();
-    Optional<User> optUser = userRepo.findById(userId);
-    if (optUser.isEmpty()) return "Usuario no encontrado";
-    User user = optUser.get();
+    if (optAcc.isPresent()) {
+      Account acc = optAcc.get();
+      if(acc.isFrozen()) throw new RuntimeException("Cuenta congelada");
+      if(acc.getBalance() < amount) throw new RuntimeException("Saldo insuficiente para ahorro");
 
-    Optional<CryptoHolding> optHolding = cryptoRepo.findByOwnerIdAndSymbol(userId, symbol);
-    CryptoHolding holding = optHolding.orElse(new CryptoHolding(symbol, 0.0, user));
-
-    if ("BUY".equals(type)) {
-      if (acc.getBalance() < amountEur) return "Fondos insuficientes en euros";
-      acc.setBalance(acc.getBalance() - amountEur);
-      holding.setAmount(holding.getAmount() + (amountEur / currentPrice));
-      transactionRepo.save(new Transaction(iban, "CRYPTO-BROKER", amountEur, "Compra " + symbol, LocalDateTime.now()));
-    } else {
-      double cryptoToSell = amountEur / currentPrice;
-      if (holding.getAmount() < cryptoToSell) return "No tienes suficientes " + symbol;
-      holding.setAmount(holding.getAmount() - cryptoToSell);
-      acc.setBalance(acc.getBalance() + amountEur);
-      transactionRepo.save(new Transaction("CRYPTO-BROKER", iban, amountEur, "Venta " + symbol, LocalDateTime.now()));
-    }
-    accountRepo.save(acc);
-    cryptoRepo.save(holding);
-    return "OK";
-  }
-
-  // --- NUEVO: GESTIÓN DE METAS DE AHORRO ---
-  public List<SavingsGoal> getGoals(Long userId) {
-    return goalRepo.findByOwnerId(userId);
-  }
-
-  public String createGoal(Long userId, String name, double target) {
-    Optional<User> u = userRepo.findById(userId);
-    if(u.isPresent()) {
-      goalRepo.save(new SavingsGoal(name, target, u.get()));
-      return "OK";
-    }
-    return "Usuario no encontrado";
-  }
-
-  public String processGoalOperation(Long goalId, String iban, double amount, String type) {
-    Optional<SavingsGoal> optGoal = goalRepo.findById(goalId);
-    Optional<Account> optAcc = accountRepo.findById(iban);
-
-    if(optGoal.isEmpty() || optAcc.isEmpty()) return "Datos inválidos";
-    SavingsGoal goal = optGoal.get();
-    Account acc = optAcc.get();
-
-    if("DEPOSIT".equals(type)) {
-      // Mover dinero: Cuenta -> Hucha
-      if(acc.getBalance() < amount) return "Saldo insuficiente en cuenta";
+      // Restamos de la cuenta principal
       acc.setBalance(acc.getBalance() - amount);
-      goal.setCurrentAmount(goal.getCurrentAmount() + amount);
+      accountRepo.save(acc);
 
-      // Creamos transacción interna para que salga en el historial
-      transactionRepo.save(new Transaction(iban, "HUCHA-" + goal.getId(), amount, "Ahorro: " + goal.getName(), LocalDateTime.now()));
+      // Guardamos movimiento especial "HUCHA"
+      Transaction t = new Transaction(iban, "HUCHA-AHORRO", amount, "Aportación Hucha/Redondeo", LocalDateTime.now());
+      transactionRepo.save(t);
+    }
+  }
 
-    } else if ("WITHDRAW".equals(type)) {
-      // Mover dinero: Hucha -> Cuenta
-      if(goal.getCurrentAmount() < amount) return "Saldo insuficiente en la meta";
-      goal.setCurrentAmount(goal.getCurrentAmount() - amount);
-      acc.setBalance(acc.getBalance() + amount);
+  // --- CRIPTO ---
+  public List<CryptoHolding> getCryptoPortfolio(String userId) {
+    return cryptoRepo.findByOwnerDni(userId);
+  }
 
-      transactionRepo.save(new Transaction("HUCHA-" + goal.getId(), iban, amount, "Retiro: " + goal.getName(), LocalDateTime.now()));
+  public String executeCryptoTrade(String userId, String iban, String symbol, String type, double amountEur, double currentPrice) {
+    Optional<Account> accOpt = accountRepo.findById(iban);
+    if(accOpt.isEmpty()) return "Cuenta inválida";
+    Account acc = accOpt.get();
+    if(acc.isFrozen()) return "Cuenta congelada";
+
+    Optional<User> uOpt = userRepo.findById(userId);
+    if(uOpt.isEmpty()) return "Usuario inválido";
+
+    // Buscar o crear holding
+    CryptoHolding holding = cryptoRepo.findByOwnerDniAndSymbol(userId, symbol)
+      .orElse(new CryptoHolding(symbol, 0.0, uOpt.get()));
+
+    if("BUY".equals(type)) {
+      if(acc.getBalance() < amountEur) return "Sin saldo";
+      acc.setBalance(acc.getBalance() - amountEur);
+
+      // Comisión simple
+      double fee = uOpt.get().isPremium() ? 0 : 0.015;
+      double net = amountEur * (1 - fee);
+
+      holding.setAmount(holding.getAmount() + (net / currentPrice));
+      transactionRepo.save(new Transaction(iban, "CRYPTO", amountEur, "Compra " + symbol, LocalDateTime.now()));
+    } else {
+      double cryptoNeeded = amountEur / currentPrice;
+      if(holding.getAmount() < cryptoNeeded) return "Faltan criptos";
+
+      holding.setAmount(holding.getAmount() - cryptoNeeded);
+      acc.setBalance(acc.getBalance() + amountEur);
+      transactionRepo.save(new Transaction("CRYPTO", iban, amountEur, "Venta " + symbol, LocalDateTime.now()));
     }
 
     accountRepo.save(acc);
-    goalRepo.save(goal);
+    cryptoRepo.save(holding); // GUARDAMOS EN BD
     return "OK";
   }
 }
