@@ -3,174 +3,220 @@ package com.securebank.controllers;
 import com.securebank.models.*;
 import com.securebank.repositories.*;
 import com.securebank.services.BankService;
-
-// Imports estándar
-import java.io.IOException;
-import java.text.Normalizer;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.List;
-
-// Imports PDF
-import com.lowagie.text.*;
-import com.lowagie.text.pdf.PdfWriter;
-import java.awt.Color;
-
-// Imports Spring
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import jakarta.servlet.http.HttpServletResponse;
+
+import java.time.LocalDateTime;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api")
+@CrossOrigin(origins = "*")
 public class BankWebController {
 
   @Autowired private UserRepository userRepo;
-  @Autowired private AccountRepository accRepo;
+  @Autowired private AccountRepository accountRepo;
+  @Autowired private TransactionRepository transactionRepo;
   @Autowired private BankService bankService;
-  @Autowired private TransactionRepository txRepo;
 
-  // --- CATEGORIZACIÓN ---
-  private static final Map<String, List<String>> CATEGORY_RULES = new HashMap<>();
-  static {
-    CATEGORY_RULES.put("Ropa 👕", Arrays.asList("zara", "h&m", "hym", "primark", "pull", "bear", "stradivarius", "bershka", "shein", "zalando", "nike", "adidas"));
-    CATEGORY_RULES.put("Alimentación 🛒", Arrays.asList("mercadona", "lidl", "carrefour", "dia", "aldi", "eroski", "consum", "alcampo", "bonarea", "super", "fruteria", "panaderia"));
-    CATEGORY_RULES.put("Ocio 🍔", Arrays.asList("restaurante", "bar", "cafe", "starbucks", "mcdonalds", "burger", "king", "kfc", "uber eats", "glovo", "just eat", "cine", "netflix", "spotify", "hbo", "steam", "playstation", "entrada"));
-    CATEGORY_RULES.put("Hogar 🏠", Arrays.asList("luz", "agua", "gas", "iberdrola", "endesa", "naturgy", "internet", "movistar", "vodafone", "orange", "yoigo", "alquiler", "comunidad", "leroy", "ikea"));
-    CATEGORY_RULES.put("Transporte 🚗", Arrays.asList("gasolin", "repsol", "cepsa", "bp", "galp", "uber", "cabify", "taxi", "renfe", "ave", "alsa", "metro", "emt", "autobus", "parking"));
-    CATEGORY_RULES.put("Salud 💊", Arrays.asList("farmacia", "medico", "dentista", "sanitas", "adeslas", "hospital", "optica"));
-  }
-
-  // --- AUTH ---
-  @PostMapping("/verify-pass")
-  public ResponseEntity<?> verifyPass(@RequestBody Map<String, String> data) {
-    Optional<User> u = userRepo.findById(Long.parseLong(data.get("userId")));
-    return (u.isPresent() && u.get().getPassword().equals(data.get("password"))) ? ResponseEntity.ok("OK") : ResponseEntity.status(401).body("Error");
-  }
-
+  // --- LOGIN & REGISTRO ---
   @PostMapping("/login")
   public ResponseEntity<?> login(@RequestBody Map<String, String> data) {
-    Optional<User> u = userRepo.findByDni(data.get("dni"));
+    Optional<User> u = userRepo.findById(data.get("dni"));
     if (u.isPresent() && u.get().getPassword().equals(data.get("password"))) return ResponseEntity.ok(u.get());
-    return ResponseEntity.status(401).body("Credenciales inválidas");
+    return ResponseEntity.status(401).body("Credenciales incorrectas");
   }
 
   @PostMapping("/register")
   public ResponseEntity<?> register(@RequestBody Map<String, String> data) {
-    if(userRepo.findByDni(data.get("dni")).isPresent()) return ResponseEntity.badRequest().body("DNI duplicado");
+    if (userRepo.existsById(data.get("dni"))) return ResponseEntity.badRequest().body("Usuario existe");
     User u = new User(data.get("dni"), data.get("firstName"), data.get("lastName"), data.get("password"));
     userRepo.save(u);
-    accRepo.save(new Account("ES" + (long)(Math.random() * 1e18) + "00", "Cuenta Corriente", 0.0, u));
-    return ResponseEntity.ok("Registrado");
+    accountRepo.save(new Account(data.get("iban"), "Cuenta Principal", 0.0, u));
+    return ResponseEntity.ok(Map.of("status", "OK"));
   }
 
-  // --- OPERACIONES ---
-  @GetMapping("/accounts/{userId}")
-  public List<Account> getAccounts(@PathVariable Long userId) { return accRepo.findByOwnerId(userId); }
-
-  @GetMapping("/beneficiary/{iban}")
-  public ResponseEntity<String> getBeneficiary(@PathVariable String iban) {
-    String name = bankService.getBeneficiaryName(iban);
-    return name != null ? ResponseEntity.ok("Cliente: " + name) : ResponseEntity.ok("Externo");
+  // --- DATOS USUARIO (Recarga todo: hucha, premium, redondeo) ---
+  @GetMapping("/users/{dni}")
+  public ResponseEntity<?> getUser(@PathVariable String dni) {
+    return userRepo.findById(dni).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
   }
 
-  @PostMapping("/transfer")
-  public ResponseEntity<String> transfer(@RequestBody Map<String, Object> payload) {
-    String res = bankService.executeTransfer((String) payload.get("sourceIban"), (String) payload.get("destIban"), Double.parseDouble(payload.get("amount").toString()), (String) payload.get("concept"));
-    return "OK".equals(res) ? ResponseEntity.ok("OK") : ResponseEntity.badRequest().body(res);
-  }
+  // --- GESTIÓN PREMIUM (COBRAR 9.99€) ---
+  @PostMapping("/users/{dni}/premium")
+  public ResponseEntity<?> setPremium(@PathVariable String dni, @RequestBody Map<String, Boolean> data) {
+    Optional<User> uOpt = userRepo.findById(dni);
+    if (uOpt.isEmpty()) return ResponseEntity.notFound().build();
+    User user = uOpt.get();
+    boolean wantPremium = data.get("isPremium");
 
-  @PostMapping("/deposit")
-  public ResponseEntity<String> deposit(@RequestBody Map<String, Object> payload) {
-    Account acc = accRepo.findById((String) payload.get("iban")).orElse(null);
-    if (acc == null) return ResponseEntity.badRequest().body("Cuenta no encontrada");
-    double amount = Double.parseDouble(payload.get("amount").toString());
-    acc.setBalance(acc.getBalance() + amount);
-    accRepo.save(acc);
-    bankService.executeTransfer(acc.getIban(), acc.getIban(), amount, "INGRESO CAJERO");
+    // Si quiere ser Premium y no lo es, COBRAR
+    if (wantPremium && !user.isPremium()) {
+      // Buscamos su cuenta principal para cobrarle
+      List<Account> accounts = accountRepo.findByOwnerDni(dni);
+      if (accounts.isEmpty()) return ResponseEntity.badRequest().body("No tienes cuenta para pagar");
+      Account acc = accounts.get(0); // Cobramos de la primera
+
+      if (acc.getBalance() < 9.99) return ResponseEntity.badRequest().body("Saldo insuficiente para Premium (9.99€)");
+
+      acc.setBalance(acc.getBalance() - 9.99);
+      accountRepo.save(acc);
+      transactionRepo.save(new Transaction("SUSCRIPCION", acc.getIban(), 9.99, "Cuota Mensual SecureBank Premium", LocalDateTime.now()));
+    }
+
+    user.setPremium(wantPremium);
+    userRepo.save(user);
     return ResponseEntity.ok("OK");
   }
 
+  // --- ACTIVAR/DESACTIVAR REDONDEO ---
+  @PostMapping("/users/{dni}/roundup")
+  public ResponseEntity<?> toggleRoundUp(@PathVariable String dni, @RequestBody Map<String, Boolean> data) {
+    userRepo.findById(dni).ifPresent(u -> {
+      u.setRoundUpActive(data.get("active"));
+      userRepo.save(u);
+    });
+    return ResponseEntity.ok("OK");
+  }
+
+  // --- HUCHA: AÑADIR (PERSISTENTE) ---
+  @PostMapping("/savings/add")
+  public ResponseEntity<?> addToSavings(@RequestBody Map<String, Object> data) {
+    try {
+      String iban = (String)data.get("iban");
+      Double amount = Double.valueOf(data.get("amount").toString());
+
+      // Validar cuenta
+      Account acc = accountRepo.findById(iban).orElseThrow(() -> new RuntimeException("Cuenta no encontrada"));
+      if(acc.isFrozen()) return ResponseEntity.badRequest().body("Cuenta congelada");
+      if(acc.getBalance() < amount) return ResponseEntity.badRequest().body("Saldo insuficiente");
+
+      // Operación
+      acc.setBalance(acc.getBalance() - amount);
+      accountRepo.save(acc);
+
+      // Guardar en Usuario
+      User u = acc.getOwner();
+      u.setSavingsBalance(u.getSavingsBalance() + amount);
+      userRepo.save(u);
+
+      transactionRepo.save(new Transaction(iban, "HUCHA", amount, "Ahorro Hucha", LocalDateTime.now()));
+      return ResponseEntity.ok("Guardado");
+    } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+  }
+
+  // --- HUCHA: ROMPER (DEVOLVER) ---
+  @PostMapping("/savings/break")
+  public ResponseEntity<?> breakSavings(@RequestBody Map<String, Object> data) {
+    try {
+      String iban = (String)data.get("iban");
+      Account acc = accountRepo.findById(iban).orElseThrow();
+      User u = acc.getOwner();
+
+      double total = u.getSavingsBalance();
+      if(total <= 0) return ResponseEntity.badRequest().body("La hucha está vacía");
+
+      // Devolver dinero
+      acc.setBalance(acc.getBalance() + total);
+      u.setSavingsBalance(0.0);
+
+      accountRepo.save(acc);
+      userRepo.save(u);
+
+      transactionRepo.save(new Transaction("HUCHA-ROTA", iban, total, "Recuperado de Hucha", LocalDateTime.now()));
+      return ResponseEntity.ok("Hucha rota");
+    } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+  }
+
+  // --- CANJEAR CASHBACK ---
+  @PostMapping("/users/{dni}/redeem-cashback")
+  public ResponseEntity<?> redeemCashback(@PathVariable String dni, @RequestBody Map<String, String> data) {
+    User user = userRepo.findById(dni).orElseThrow();
+    double amount = user.getAccumulatedCashback();
+    if (amount <= 0) return ResponseEntity.badRequest().body("Sin cashback");
+
+    Account acc = accountRepo.findById(data.get("iban")).orElseThrow();
+    acc.setBalance(acc.getBalance() + amount);
+    accountRepo.save(acc);
+
+    user.setAccumulatedCashback(0.0);
+    userRepo.save(user);
+
+    transactionRepo.save(new Transaction("REWARDS", acc.getIban(), amount, "Canje Cashback", LocalDateTime.now()));
+    return ResponseEntity.ok("OK");
+  }
+
+  // --- RESTO DE ENDPOINTS (Info, Transfer, Crypto, Graficas) ---
+  @GetMapping("/accounts/{dni}")
+  public List<Account> getAccounts(@PathVariable String dni) { return accountRepo.findByOwnerDni(dni); }
+
   @GetMapping("/history/{iban}")
-  public ResponseEntity<List<Transaction>> getHistory(@PathVariable String iban) { return ResponseEntity.ok(bankService.getHistory(iban)); }
+  public List<Transaction> getHistory(@PathVariable String iban) { return bankService.getHistory(iban); }
 
-  // --- NUEVO: ENDPOINTS DE METAS DE AHORRO ---
-  @GetMapping("/goals/{userId}")
-  public List<SavingsGoal> getGoals(@PathVariable Long userId) {
-    return bankService.getGoals(userId);
+  @PostMapping("/transfer")
+  public ResponseEntity<?> transfer(@RequestBody TransactionDto dto) {
+    try { bankService.processTransaction(dto); return ResponseEntity.ok("Transferencia OK"); }
+    catch (RuntimeException e) { return ResponseEntity.badRequest().body(e.getMessage()); }
   }
 
-  @PostMapping("/goals/create")
-  public ResponseEntity<String> createGoal(@RequestBody Map<String, Object> data) {
-    return ResponseEntity.ok(bankService.createGoal(Long.parseLong(data.get("userId").toString()), (String) data.get("name"), Double.parseDouble(data.get("target").toString())));
+  @PostMapping("/deposit")
+  public ResponseEntity<?> deposit(@RequestBody Map<String, Object> data) {
+    Account acc = accountRepo.findById((String)data.get("iban")).orElseThrow();
+    acc.setBalance(acc.getBalance() + Double.valueOf(data.get("amount").toString()));
+    accountRepo.save(acc);
+    transactionRepo.save(new Transaction("INGRESO", acc.getIban(), Double.valueOf(data.get("amount").toString()), "Ingreso Efectivo", LocalDateTime.now()));
+    return ResponseEntity.ok(Map.of("status", "OK"));
   }
 
-  @PostMapping("/goals/operate")
-  public ResponseEntity<String> operateGoal(@RequestBody Map<String, Object> data) {
-    String res = bankService.processGoalOperation(Long.parseLong(data.get("goalId").toString()), (String) data.get("iban"), Double.parseDouble(data.get("amount").toString()), (String) data.get("type"));
+  @PostMapping("/accounts/{iban}/toggle-freeze")
+  public ResponseEntity<?> toggleFreeze(@PathVariable String iban) {
+    Account acc = accountRepo.findById(iban).orElseThrow();
+    acc.setFrozen(!acc.isFrozen());
+    accountRepo.save(acc);
+    return ResponseEntity.ok(Map.of("frozen", acc.isFrozen()));
+  }
+
+  @GetMapping("/crypto/portfolio/{dni}")
+  public List<CryptoHolding> getPortfolio(@PathVariable String dni) { return bankService.getCryptoPortfolio(dni); }
+
+  @PostMapping("/crypto/trade")
+  public ResponseEntity<?> cryptoTrade(@RequestBody Map<String, Object> data) {
+    String res = bankService.executeCryptoTrade((String)data.get("userId"), (String)data.get("iban"), (String)data.get("symbol"), (String)data.get("type"), Double.valueOf(data.get("amountEur").toString()), Double.valueOf(data.get("currentPrice").toString()));
     return "OK".equals(res) ? ResponseEntity.ok("OK") : ResponseEntity.badRequest().body(res);
   }
 
-  // --- GRÁFICAS & PDF ---
   @GetMapping("/expenses-chart/{iban}")
-  public Map<String, Double> getChartData(@PathVariable String iban) {
+  public Map<String, Double> getExpensesChart(@PathVariable String iban) {
     List<Transaction> txs = bankService.getHistory(iban);
-    Map<String, Double> cats = new HashMap<>();
-    for (Transaction tx : txs) if (tx.getSourceIban().equals(iban) && !tx.getDestIban().equals(iban)) {
-      String c = categorizeSmart(tx.getConcept());
-      cats.put(c, cats.getOrDefault(c, 0.0) + tx.getAmount());
+    Map<String, Double> chartData = new HashMap<>();
+    for (Transaction tx : txs) {
+      if (tx.getSourceIban().equals(iban) && !tx.getDestIban().equals(iban)) {
+        String c = tx.getConcept().toLowerCase();
+        String cat = "Otros";
+        if (c.contains("netflix") || c.contains("spotify") || c.contains("cine")) cat = "Ocio";
+        else if (c.contains("mercadona") || c.contains("carrefour") || c.contains("restaurante")) cat = "Alimentación";
+        else if (c.contains("gasolinera") || c.contains("uber") || c.contains("metro")) cat = "Transporte";
+        else if (c.contains("crypto") || c.contains("binance")) cat = "Inversión";
+        else if (c.contains("hucha") || c.contains("ahorro")) continue;
+        chartData.put(cat, chartData.getOrDefault(cat, 0.0) + tx.getAmount());
+      }
     }
-    return cats;
+    if(chartData.isEmpty()) chartData.put("Sin Gastos", 1.0);
+    return chartData;
   }
 
   @GetMapping("/monthly-chart/{iban}")
-  public Map<String, Double> getMonthlyData(@PathVariable String iban) {
+  public Map<String, Double> getMonthlyChart(@PathVariable String iban, @RequestParam(defaultValue = "2026") String year) {
     List<Transaction> txs = bankService.getHistory(iban);
-    Map<String, Double> m = new TreeMap<>();
-    DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyy-MM");
-    for (Transaction tx : txs) if (tx.getSourceIban().equals(iban) && !tx.getDestIban().equals(iban) && tx.getDate() != null) {
-      m.put(tx.getDate().format(f), m.getOrDefault(tx.getDate().format(f), 0.0) + tx.getAmount());
+    Map<String, Double> monthlyData = new TreeMap<>();
+    for (Transaction tx : txs) {
+      String dateStr = tx.getDate().toString();
+      if (dateStr.startsWith(year) && tx.getSourceIban().equals(iban) && !tx.getDestIban().equals(iban) && !tx.getConcept().contains("HUCHA")) {
+        String mk = dateStr.substring(0, 7);
+        monthlyData.put(mk, monthlyData.getOrDefault(mk, 0.0) + tx.getAmount());
+      }
     }
-    return m;
-  }
-
-  @GetMapping("/export-pdf/{txId}")
-  public void exportPdf(@PathVariable Long txId, HttpServletResponse r) throws IOException {
-    Optional<Transaction> o = txRepo.findById(txId);
-    if (o.isPresent()) {
-      Transaction t = o.get();
-      r.setContentType("application/pdf");
-      r.setHeader("Content-Disposition", "attachment; filename=Justificante_" + txId + ".pdf");
-      Document d = new Document(PageSize.A4);
-      PdfWriter.getInstance(d, r.getOutputStream());
-      d.open();
-      Font titleF = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, new Color(59, 130, 246));
-      d.add(new Paragraph("SecureBank Ultimate", titleF));
-      d.add(new Paragraph(" "));
-      d.add(new Paragraph("JUSTIFICANTE DE OPERACIÓN"));
-      d.add(new Paragraph("------------------------------------------------"));
-      d.add(new Paragraph("Ref: " + t.getId()));
-      d.add(new Paragraph("Fecha: " + t.getDate()));
-      d.add(new Paragraph("Importe: " + t.getAmount() + " EUR"));
-      d.add(new Paragraph("Concepto: " + t.getConcept()));
-      d.close();
-    }
-  }
-
-  // --- CRYPTO ---
-  @GetMapping("/crypto/portfolio/{userId}")
-  public ResponseEntity<?> getPortfolio(@PathVariable Long userId) { return ResponseEntity.ok(bankService.getCryptoPortfolio(userId)); }
-
-  @PostMapping("/crypto/trade")
-  public ResponseEntity<String> tradeCrypto(@RequestBody Map<String, Object> p) {
-    return ResponseEntity.ok(bankService.executeCryptoTrade(Long.parseLong(p.get("userId").toString()), (String) p.get("iban"), (String) p.get("symbol"), (String) p.get("type"), Double.parseDouble(p.get("amountEur").toString()), Double.parseDouble(p.get("currentPrice").toString())));
-  }
-
-  private String categorizeSmart(String c) {
-    if (c == null) return "Otros 📦";
-    String n = Normalizer.normalize(c.toLowerCase().replace("&", "y"), Normalizer.Form.NFD).replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
-    for (Map.Entry<String, List<String>> e : CATEGORY_RULES.entrySet()) for (String k : e.getValue()) if (n.contains(k)) return e.getKey();
-    return "Otros 📦";
+    return monthlyData;
   }
 }
