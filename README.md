@@ -1,126 +1,79 @@
-# 🏦 SecureBank Core - Sistema de Infraestructura Bancaria
+# 🏦 SecureBank Ultimate Core
 
-![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
-![Pattern](https://img.shields.io/badge/Design_Pattern-Observer-blue?style=for-the-badge)
-![GUI](https://img.shields.io/badge/GUI-Swing-green?style=for-the-badge)
+![Java](https://img.shields.io/badge/Java-17%2B-orange) ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.x-green) ![Architecture](https://img.shields.io/badge/Architecture-Clean-blue) ![Pattern](https://img.shields.io/badge/Pattern-Observer-blueviolet)
 
-**SecureBank Core** es un simulador de infraestructura bancaria crítica diseñado para demostrar la implementación práctica del **Patrón de Diseño Observador (Observer Pattern)** en un entorno de alta concurrencia.
+**SecureBank Ultimate** es el backend robusto para una plataforma bancaria de nueva generación. Este sistema gestiona transacciones financieras, detección de fraude con IA simulada y lógica de negocio avanzada utilizando patrones de diseño y principios SOLID.
 
-El sistema simula el ciclo de vida completo de las transacciones financieras: desde la app del cliente hasta el núcleo bancario, pasando por motores de IA antifraude y registros inmutables (Ledger).
+## 🚀 Funcionalidades
 
----
+### 💳 Core Bancario
+* **Gestión de Cuentas:** Registro de usuarios, generación de IBANs y persistencia de datos.
+* **Transacciones Atómicas:** Transferencias entre cuentas con validación de saldo y atomicidad.
+* **Ingresos y Depósitos:** API para cargar saldo desde fuentes externas.
 
-## 📋 Tabla de Contenidos
-- [Arquitectura del Sistema](#-arquitectura-del-sistema)
-- [Características Principales](#-características-principales)
-- [Motor de Seguridad (Fraud AI)](#-motor-de-seguridad-fraud-ai)
-- [Instalación y Ejecución](#-instalación-y-ejecución)
-- [Guía de Prueba (Demo)](#-guía-de-prueba-demo)
-- [Configuración de Datos](#-configuración-de-datos)
+### 🌟 Sistema Premium & Estrategias
+* **Lógica Diferenciada:** Cálculo de comisiones dinámico basado en el nivel del usuario (Standard vs Premium) utilizando el **Patrón Strategy**.
+* **Ventajas:** Comisiones reducidas o nulas para usuarios VIP.
 
----
+### 🛡️ Seguridad y Fraude (Chain of Responsibility)
+El sistema implementa un motor de análisis de fraude que evalúa cada transacción en tiempo real a través de una cadena de validadores:
+1.  **Blacklist Check:** Verificación de IBANs prohibidos.
+2.  **Geo Check:** Detección de ubicaciones sospechosas.
+3.  **Velocity Check:** Control de frecuencia de operaciones.
+4.  **Limit Check:** Validación de importes máximos.
 
-## 🏗 Arquitectura del Sistema
+### 📡 Sistema de Eventos (Observer)
+Arquitectura reactiva donde el núcleo notifica eventos sin acoplarse a las implementaciones:
+* **Audit Logger:** Registro inmutable de operaciones.
+* **Notification Service:** Envío asíncrono de alertas al usuario.
+* **General Ledger:** Contabilidad interna del banco.
 
-El proyecto sigue una arquitectura **Event-Driven** (dirigida por eventos) desacoplada mediante el Patrón Observador.
+## 🛠️ Stack Tecnológico
 
-### 1. El Sujeto (Subject)
-* **`TransactionEngine`:** Es el corazón del sistema. Procesa las solicitudes de transferencia y emite eventos de difusión (*broadcast*) a todos los componentes conectados. No conoce la identidad de los observadores, garantizando el principio *Open/Closed*.
+* **Lenguaje:** Java 17
+* **Framework:** Spring Boot (Web, Data JPA)
+* **Base de Datos:** H2 Database (Modo memoria/archivo para desarrollo rápido).
+* **Frontend:** HTML5, CSS3, JavaScript (integrado en `resources/static` para el panel de control).
+* **Build Tool:** Maven.
 
-### 2. Los Observadores (Observers)
-Componentes independientes que reaccionan a los eventos del motor en tiempo real:
+## 📂 Estructura del Proyecto
 
-| Componente | Rol | Responsabilidad |
-|:---|:---|:---|
-| **📱 MobilePhoneSimulator** | Frontend | Simula dispositivos de clientes. Filtra eventos, gestiona sesiones y notificaciones Push. |
-| **🖥️ BankAdminConsole** | Dashboard | Centro de Operaciones (NOC). Visualiza tráfico, métricas de infraestructura y logs. |
-| **🛡️ FraudDetectorAI** | Seguridad | Analiza patrones en tiempo real (Behavioral Analytics) y bloquea operaciones sospechosas. |
-| **📒 GeneralLedger** | Integridad | Simulación de Blockchain. Genera Hashes SHA-256 inmutables para cada transacción. |
-| **📩 NotificationService** | Comms | Simula el envío de correos y SMS transaccionales. |
-| **📜 AuditLogger** | Auditoría | Registra trazas técnicas para cumplimiento normativo. |
+```text
+src/main/java/com/securebank
+├── controllers      # Endpoints REST (API)
+├── fraud            # Lógica de detección de fraude (Chain of Responsibility)
+├── interfaces       # Contratos de sistema (Observers, Providers)
+├── models           # Entidades de Base de Datos (JPA)
+├── observers        # Suscriptores de eventos (Logger, Notificaciones)
+├── repositories     # Capa de acceso a datos (DAO)
+├── services         # Lógica de negocio principal
+└── strategies       # Algoritmos de comisiones (Strategy Pattern)
+```
 
----
+## 🔌 API Endpoints
 
-## ✨ Características Principales
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| **POST** | `/api/register` | Registrar nuevo usuario y cuenta. |
+| **POST** | `/api/login` | Autenticación de usuarios. |
+| **POST** | `/api/transfer` | Realizar transferencia o Bizum. |
+| **POST** | `/api/deposit` | Ingresar dinero (Cajero/Nómina). |
+| **GET** | `/api/accounts/{dni}` | Obtener estado y saldo de la cuenta. |
+| **GET** | `/api/history/{iban}` | Historial de transacciones. |
+| **POST** | `/api/users/{dni}/premium`| Cambiar estado de suscripción. |
 
-* **Persistencia Real:** Los saldos y transacciones se guardan en disco (`bank_accounts.csv`), permitiendo la continuidad de datos entre ejecuciones.
-* **Simulación Multi-Dispositivo:** Capacidad para lanzar múltiples instancias de la App Móvil para simular emisor y receptor simultáneamente.
-* **UX/UI Profesional:**
-    * Login mediante DNI.
-    * Autocompletado de beneficiarios por IBAN.
-    * Generación de **Recibos Digitales** (HTML) con validación visual.
-    * Notificaciones tipo "Push" y centro de mensajes.
-* **Protocolo de Comunicación:** Uso de mensajería estructurada (`TX##ORIGEN##DESTINO...`) para la comunicación entre componentes.
+## ▶️ Instalación y Ejecución
 
----
-
-## 🚨 Motor de Seguridad (Fraud AI)
-
-El sistema implementa un motor de **Behavioral Analytics** (Análisis de Comportamiento) que evalúa riesgos en tiempo real:
-
-1.  **Velocity Check:** Bloquea intentos de transacción inhumanamente rápidos (<10s entre operaciones) típicos de bots.
-2.  **Pattern Recognition:** Detecta "Pitufeo" (Structuring) y patrones de números redondos sospechosos de sobornos.
-3.  **Geo-Blocking & AML:** Bloquea fugas de capitales a IBANs no nacionales (fuera de zona SEPA) con importes altos.
-4.  **Blacklist Dinámica:** Filtra conceptos prohibidos cargados desde un fichero externo (`blocked_concepts.csv`).
-
----
-
-## 🚀 Instalación y Ejecución
-
-### Requisitos
-* Java Development Kit (JDK) 11 o superior.
-* IDE recomendado: IntelliJ IDEA o Eclipse.
-
-### Pasos
-1.  Clona el repositorio.
-2.  Asegúrate de que los archivos de datos están en la **raíz del proyecto** (al mismo nivel que la carpeta `src`):
-    * `bank_accounts.csv`
-    * `blocked_concepts.csv`
-3.  Ejecuta la clase principal: `src/com/securebank/main/MainSystem.java`.
+1. Clonar el repositorio
+```
+   git clone https://github.com/usuario/securebank-core.git
+   cd securebank-core
+```
+2. Ejecutar la aplicación
+```
+   ./mvnw spring-boot:run
+```
+3. Acceder al Panel Web: Abre tu navegador en: http://localhost:8081
 
 ---
-
-## 🧪 Guía de Prueba (Demo)
-
-Sigue este guion para probar todas las capacidades del sistema:
-
-### Escenario 1: Transferencia Exitosa
-1.  Inicia el programa. Se abrirán 3 ventanas: Dashboard y 2 Móviles.
-2.  **Móvil A:** Inicia sesión como **Antonio** (DNI: `41293847S` / PIN: `1234`).
-3.  **Móvil B:** Inicia sesión como **Maria** (DNI: `03928174Q` / PIN: `1234`).
-4.  En el **Móvil A**:
-    * Ve a "Transferir".
-    * Copia el IBAN de Maria del Móvil B.
-    * Pégalo en destinatario y pulsa TAB (verás que aparece "Maria Lopez" en verde).
-    * Envía **150€** con concepto "Cena".
-5.  **Resultado:**
-    * Antonio recibe ventana para descargar recibo.
-    * Maria recibe notificación verde inmediata (+150€).
-    * El Dashboard registra la operación en la tabla.
-
-### Escenario 2: Detección de Fraude
-1.  En el **Móvil A**, intenta enviar dinero.
-2.  En el concepto escribe: **"Pago de ARMAS"**.
-3.  Pulsa enviar.
-4.  **Resultado:**
-    * El Dashboard (Panel Fraud AI) comienza a escanear.
-    * Se detecta "Lista Negra" en rojo.
-    * El móvil muestra "Operación rechazada por política de seguridad".
-    * No se descuenta dinero.
-
----
-
-## ⚙️ Configuración de Datos
-
-El sistema es 100% configurable mediante archivos CSV en la raíz:
-
-* **`bank_accounts.csv`**: Base de datos de clientes.
-    * Formato: `DNI,CLIENTE,IBAN,TIPO_CUENTA,SALDO`
-* **`blocked_concepts.csv`**: Diccionario de términos para el motor AML.
-    * Formato: Una palabra prohibida por línea.
-
----
-
-**Autor:** [Alejandro García Pérez - alu0101441207]  
-**Asignatura:** Diseño arquitectónicos y patrones
-**Tecnología:** Java Swing + Observer Pattern
+*Desarrollado como parte del Proyecto Final de la asignatura Diseño Arquitectónico y Patrones (DAP) - Implementación de Patrones de Software.*
