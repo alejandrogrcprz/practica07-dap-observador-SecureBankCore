@@ -1,18 +1,25 @@
 package com.securebank.models;
 
 import jakarta.persistence.*;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
+@Table(name = "accounts")
 public class Account {
+
   @Id
+  @Column(length = 30)
   private String iban;
+
   private String alias;
   private double balance;
 
-  @ManyToOne
-  @JoinColumn(name = "user_id")
-  @JsonIgnore
+  // NUEVO CAMPO: Para saber si está congelada
+  private boolean isFrozen = false;
+
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "user_dni")
+  @JsonIgnoreProperties("password")
   private User owner;
 
   public Account() {}
@@ -22,8 +29,10 @@ public class Account {
     this.alias = alias;
     this.balance = balance;
     this.owner = owner;
+    this.isFrozen = false;
   }
 
+  // Getters y Setters
   public String getIban() { return iban; }
   public void setIban(String iban) { this.iban = iban; }
   public String getAlias() { return alias; }
@@ -32,4 +41,8 @@ public class Account {
   public void setBalance(double balance) { this.balance = balance; }
   public User getOwner() { return owner; }
   public void setOwner(User owner) { this.owner = owner; }
+
+  // Getter/Setter nuevo
+  public boolean isFrozen() { return isFrozen; }
+  public void setFrozen(boolean frozen) { isFrozen = frozen; }
 }
