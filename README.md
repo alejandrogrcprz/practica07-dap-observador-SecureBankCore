@@ -1,4 +1,4 @@
-# 🏦 SecureBank Ultimate Core
+# 🏦 SecureBank Ultimate 
 
 ![Java](https://img.shields.io/badge/Java-17%2B-orange) ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.x-green) ![Architecture](https://img.shields.io/badge/Architecture-Clean-blue) ![Pattern](https://img.shields.io/badge/Pattern-Observer-blueviolet)
 
